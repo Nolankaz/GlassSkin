@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException
-from schemas import SkinProfileRequest
+from schemas import SkinProfileRequest, SkinProfileUpdate
 from models import SkinProfile
 from fastapi.middleware.cors import CORSMiddleware
 from database import supabase
@@ -107,5 +107,25 @@ def create_profile(data: SkinProfileRequest):
         .insert(profile_data)
         .execute()
     )
+
+    return response.data[0]
+
+@app.patch("/profiles/{profile_id}")
+def update_profile(profile_id: int, data: SkinProfileUpdate):
+    update_data = data.model_dump(exclude_unset=True)
+
+    response = (
+        supabase
+        .table("skin_profiles")
+        .update(update_data)
+        .eq("id", profile_id)
+        .execute()
+    )
+
+    if not response.data:
+        raise HTTPException(
+            status_code=404,
+            detail="Profile not found"
+        )
 
     return response.data[0]
