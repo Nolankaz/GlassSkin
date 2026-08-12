@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 
 class SkinProfileRequest(BaseModel):
+    name: str
     age: int
 
     # Acne / clogged pores
