@@ -62,26 +62,34 @@ class SkinProfile:
         return {
             "age": self.age,
 
-            "inflammatory_acne": self.inflammatory_acne,
-            "blackheads": self.blackheads,
-            "whiteheads": self.whiteheads,
+            "acne" : {
+                "inflammatory_acne": self.inflammatory_acne,
+                "blackheads": self.blackheads,
+                "whiteheads": self.whiteheads,
+            },
+            
+            "pigmentation" : {
+                "pie": self.pie,
+                "pih": self.pih,
+            },
+            
+            "appearance" : {
+                "redness": self.redness,
+                "rosacea": self.rosacea,
+                "dark_circles": self.dark_circles,
+                "uneven_skin_tone": self.uneven_skin_tone
+            },
 
-            "pie": self.pie,
-            "pih": self.pih,
-
-            "redness": self.redness,
-            "rosacea": self.rosacea,
-
-            "dryness": self.dryness,
-            "sensitivity": self.sensitivity,
-            "irritation": self.irritation,
-
-            "oiliness": self.oiliness,
-
-            "texture_irregularity": self.texture_irregularity,
-            "acne_scarring": self.acne_scarring,
-
-            "enlarged_pores": self.enlarged_pores,
-            "dark_circles": self.dark_circles,
-            "uneven_skin_tone": self.uneven_skin_tone
+            "barrier" : {
+                "dryness": self.dryness,
+                "sensitivity": self.sensitivity,
+                "irritation": self.irritation,
+                "oiliness": self.oiliness,
+            },
+            
+            "texture" : {
+                "texture_irregularity": self.texture_irregularity,
+                "acne_scarring": self.acne_scarring,
+                "enlarged_pores": self.enlarged_pores,
+            },
         }
