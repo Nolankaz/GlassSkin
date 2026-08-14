@@ -1,5 +1,6 @@
 from typing import Optional
 from pydantic import BaseModel, Field
+from enum import Enum
 
 class SkinProfileRequest(BaseModel):
     name: str = Field(min_length=1, max_length=50)
@@ -60,3 +61,41 @@ class SkinProfileUpdate(BaseModel):
 
     dark_circles: Optional[int] = Field(default=None, ge=0, le=10)
     uneven_skin_tone: Optional[int] = Field(default=None, ge=0, le=10)
+
+class TreatmentType(str, Enum):
+    topical = "topical"
+    oral = "oral"
+    procedural = "procedural"
+    skincare = "skincare"
+    other = "other"
+
+class EvidenceSource(BaseModel):
+    title: str
+    url: str
+    source_name: str
+
+class ConfidenceLevel(str, Enum):
+    low = "low"
+    moderate = "moderate"
+    high = "high"
+
+class TreatmentOption(BaseModel):
+    treatment_name: str
+    treatment_type: TreatmentType
+
+    why_it_may_fit: str
+
+    prescription_required: bool
+
+    key_benefits: list[str]
+    key_risks: list[str]
+
+    evidence_sources: list[EvidenceSource]
+
+    confidence: ConfidenceLevel
+
+class TreatmentResearchResult(BaseModel):
+    options: list[TreatmentOption] = Field(
+        min_length=1,
+        max_length=5
+    )
