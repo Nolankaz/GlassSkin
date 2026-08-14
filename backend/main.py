@@ -3,6 +3,8 @@ from schemas import SkinProfileRequest, SkinProfileUpdate
 from models import SkinProfile
 from fastapi.middleware.cors import CORSMiddleware
 from database import supabase
+from services.treatment_research import (generate_treatment_options, TreatmentResearchError,)
+import asyncio
 
 app = FastAPI()
 
@@ -129,3 +131,35 @@ def update_profile(profile_id: int, data: SkinProfileUpdate):
         )
 
     return response.data[0]
+
+@app.get("/profiles/{profile_id}/treatment-options")
+async def get_treatment_options(profile_id: int):
+    response = (
+        supabase
+        .table("skin_profiles")
+        .select("*")
+        .eq("id", profile_id)
+        .execute()
+    )
+
+    if not response.data:
+        raise HTTPException(
+            status_code=404,
+            detail="Profile not found"
+        )
+
+    profile = response.data[0]
+
+    try:
+        result = await generate_treatment_options(profile)
+
+    except TreatmentResearchError:
+        raise HTTPException(
+            status_code=502,
+            detail="Unable to research treatment options"
+        )
+
+    return {
+        "profile_id": profile_id,
+        "result": result,
+    }
