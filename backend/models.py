@@ -2,9 +2,11 @@ class SkinProfile:
     def __init__(
         self,
         age,
+        gender,
 
         # Acne / clogged pores
         inflammatory_acne,
+        cystic_nodular_acne,
         blackheads,
         whiteheads,
 
@@ -34,8 +36,10 @@ class SkinProfile:
         uneven_skin_tone,
     ):
         self.age = age
+        self.gender = gender
 
         self.inflammatory_acne = inflammatory_acne
+        self.cystic_nodular_acne = cystic_nodular_acne
         self.blackheads = blackheads
         self.whiteheads = whiteheads
 
@@ -61,9 +65,11 @@ class SkinProfile:
     def get_skin_summary(self):
         return {
             "age": self.age,
+            "gender": self.gender,
 
             "acne" : {
                 "inflammatory_acne": self.inflammatory_acne,
+                "cystic_nodular_acne": self.cystic_nodular_acne,
                 "blackheads": self.blackheads,
                 "whiteheads": self.whiteheads,
             },

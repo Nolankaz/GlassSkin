@@ -3,14 +3,23 @@ from schemas import SkinProfileRequest, SkinProfileUpdate
 from models import SkinProfile
 from fastapi.middleware.cors import CORSMiddleware
 from database import supabase
-from services.treatment_research import (generate_treatment_options, TreatmentResearchError,)
+from services.treatment_research import (
+    RESEARCH_VERSION,
+    generate_treatment_options,
+    TreatmentResearchError,
+)
 import asyncio
 
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -57,8 +66,10 @@ def create_profile(data: SkinProfileRequest):
 
     profile = SkinProfile(
         age=data.age,
+        gender=data.gender,
 
         inflammatory_acne=data.inflammatory_acne,
+        cystic_nodular_acne=data.cystic_nodular_acne,
         blackheads=data.blackheads,
         whiteheads=data.whiteheads,
 
@@ -85,7 +96,9 @@ def create_profile(data: SkinProfileRequest):
     profile_data = {
         "name": data.name,
         "age": profile.age,
+        "gender": profile.gender,
         "inflammatory_acne": profile.inflammatory_acne,
+        "cystic_nodular_acne": profile.cystic_nodular_acne,
         "blackheads": profile.blackheads,
         "whiteheads": profile.whiteheads,
         "pie": profile.pie,
@@ -121,6 +134,7 @@ def update_profile(profile_id: int, data: SkinProfileUpdate):
         .table("skin_profiles")
         .update(update_data)
         .eq("id", profile_id)
+        .select("*")
         .execute()
     )
 
@@ -130,7 +144,50 @@ def update_profile(profile_id: int, data: SkinProfileUpdate):
             detail="Profile not found"
         )
 
+    if update_data:
+        try:
+            (
+                supabase
+                .table("treatment_research_results")
+                .delete()
+                .eq("profile_id", profile_id)
+                .execute()
+            )
+        except Exception as error:
+            print("Failed to clear saved treatment research", error)
+
     return response.data[0]
+
+def get_saved_treatment_research(profile_id: int):
+    try:
+        response = (
+            supabase
+            .table("treatment_research_results")
+            .select("*")
+            .eq("profile_id", profile_id)
+            .eq("research_version", RESEARCH_VERSION)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+    except Exception as error:
+        print("Failed to load saved treatment research", error)
+        return None
+
+    if not response.data:
+        return None
+
+    return response.data[0]["result"]
+
+@app.get("/profiles/{profile_id}/treatment-options/saved")
+def get_saved_treatment_options(profile_id: int):
+    saved_result = get_saved_treatment_research(profile_id)
+
+    return {
+        "profile_id": profile_id,
+        "result": saved_result,
+        "research_version": RESEARCH_VERSION,
+    }
 
 @app.get("/profiles/{profile_id}/treatment-options")
 async def get_treatment_options(profile_id: int):
@@ -149,6 +206,14 @@ async def get_treatment_options(profile_id: int):
         )
 
     profile = response.data[0]
+    saved_result = get_saved_treatment_research(profile_id)
+
+    if saved_result is not None:
+        return {
+            "profile_id": profile_id,
+            "result": saved_result,
+            "research_version": RESEARCH_VERSION,
+        }
 
     try:
         result = await generate_treatment_options(profile)
@@ -159,7 +224,24 @@ async def get_treatment_options(profile_id: int):
             detail="Unable to research treatment options"
         )
 
+    result_data = result.model_dump(mode="json")
+
+    try:
+        (
+            supabase
+            .table("treatment_research_results")
+            .insert({
+                "profile_id": profile_id,
+                "research_version": RESEARCH_VERSION,
+                "result": result_data,
+            })
+            .execute()
+        )
+    except Exception as error:
+        print("Failed to save treatment research", error)
+
     return {
         "profile_id": profile_id,
-        "result": result,
+        "result": result_data,
+        "research_version": RESEARCH_VERSION,
     }
