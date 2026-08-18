@@ -5,9 +5,11 @@ from enum import Enum
 class SkinProfileRequest(BaseModel):
     name: str = Field(min_length=1, max_length=50)
     age: int = Field(ge=0, le=120)
+    gender: str = Field(default="Not specified", max_length=50)
 
     # Acne / clogged pores
     inflammatory_acne: int = Field(ge=0, le=10)
+    cystic_nodular_acne: int = Field(ge=0, le=10)
     blackheads: int = Field(ge=0, le=10)
     whiteheads: int = Field(ge=0, le=10)
 
@@ -39,8 +41,10 @@ class SkinProfileRequest(BaseModel):
 class SkinProfileUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=50)
     age: Optional[int] = Field(default=None, ge=10, le=100)
+    gender: Optional[str] = Field(default=None, max_length=50)
 
     inflammatory_acne: Optional[int] = Field(default=None, ge=0, le=10)
+    cystic_nodular_acne: Optional[int] = Field(default=None, ge=0, le=10)
     blackheads: Optional[int] = Field(default=None, ge=0, le=10)
     whiteheads: Optional[int] = Field(default=None, ge=0, le=10)
 

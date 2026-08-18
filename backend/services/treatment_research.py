@@ -72,9 +72,11 @@ def build_profile_context(profile: dict) -> str:
 Digital skin profile
 
 Age: {profile["age"]}
+Gender: {profile.get("gender", "Not specified")}
 
 Acne:
 - Inflammatory acne: {profile["inflammatory_acne"]}/10
+- Cystic / nodular acne: {profile.get("cystic_nodular_acne", 0)}/10
 - Blackheads: {profile["blackheads"]}/10
 - Whiteheads: {profile["whiteheads"]}/10
 
@@ -82,15 +84,15 @@ Pigmentation / redness:
 - PIE: {profile["pie"]}/10
 - PIH: {profile["pih"]}/10
 - Redness: {profile["redness"]}/10
-- Rosacea: {profile["rosacea"]}/10
 
-Skin barrier:
+Skin barrier / sensitivity:
 - Dryness: {profile["dryness"]}/10
 - Sensitivity: {profile["sensitivity"]}/10
 - Irritation: {profile["irritation"]}/10
+- Oiliness: {profile["oiliness"]}/10
 
 Other skin characteristics:
-- Oiliness: {profile["oiliness"]}/10
+- Rosacea: {profile["rosacea"]}/10
 - Texture irregularity: {profile["texture_irregularity"]}/10
 - Acne scarring: {profile["acne_scarring"]}/10
 - Enlarged pores: {profile["enlarged_pores"]}/10
