@@ -1,0 +1,16 @@
+# GlassSkinAI backend dependencies.
+#
+# Only direct imports are listed here; pip resolves the rest (httpx, starlette,
+# postgrest, pydantic-core, ...). Versions are the ones this project is
+# currently developed and verified against.
+#
+# Install with:
+#   python3 -m venv .venv
+#   ./.venv/bin/pip install -r requirements.txt
+
+fastapi==0.141.1          # web framework: routing, request validation, CORS
+uvicorn[standard]==0.52.1 # ASGI server used to run the app locally
+pydantic==2.13.4          # request/response schemas (schemas.py)
+python-dotenv==1.2.2      # loads backend/.env into os.environ
+supabase==2.31.0          # Postgres/PostgREST client (database.py)
+openai==3.0.0             # Responses API client for treatment research
