@@ -1,0 +1,193 @@
+"""Domain model for the GlassSkinAI treatment simulation.
+
+Everything in this module is a pure data definition: no I/O, no environment
+variables, no database. Given the same inputs it behaves the same way, which
+is what makes the simulation testable without mocking anything.
+
+Nothing here holds medical values. Real treatment parameters arrive on Day 12
+with a documented source per number; until then, any parameters used for
+testing are named FIXTURE_* and marked NOT MEDICAL.
+"""
+
+from typing import Any, Literal, Mapping, get_args
+
+from pydantic import BaseModel, Field
+
+
+# The 17 skin metrics, in the same order and with the same spelling as
+# SkinProfileRequest in schemas.py and the skin_profiles table.
+# A test in tests/test_simulation_models.py asserts that correspondence, so
+# this list cannot drift away from the rest of the system unnoticed.
+SkinMetricName = Literal[
+    "inflammatory_acne",
+    "cystic_nodular_acne",
+    "blackheads",
+    "whiteheads",
+    "pie",
+    "pih",
+    "redness",
+    "rosacea",
+    "dryness",
+    "sensitivity",
+    "irritation",
+    "oiliness",
+    "texture_irregularity",
+    "acne_scarring",
+    "enlarged_pores",
+    "dark_circles",
+    "uneven_skin_tone",
+]
+
+# get_args() pulls the strings back out of the Literal at runtime, so the
+# type annotation and the iterable list are the same single source of truth.
+SKIN_METRIC_NAMES: tuple[str, ...] = get_args(SkinMetricName)
+
+# Every skin metric lives in [0, 10]. This is the engine's core invariant:
+# no arithmetic anywhere is allowed to produce a state outside this range.
+METRIC_MIN = 0.0
+METRIC_MAX = 10.0
+
+
+class SkinState(BaseModel):
+    """Skin at one instant in a simulation. S(t) in the engine's notation."""
+
+    model_config = {"extra": "forbid"}
+
+    inflammatory_acne: float = Field(ge=METRIC_MIN, le=METRIC_MAX)
+    cystic_nodular_acne: float = Field(ge=METRIC_MIN, le=METRIC_MAX)
+    blackheads: float = Field(ge=METRIC_MIN, le=METRIC_MAX)
+    whiteheads: float = Field(ge=METRIC_MIN, le=METRIC_MAX)
+    pie: float = Field(ge=METRIC_MIN, le=METRIC_MAX)
+    pih: float = Field(ge=METRIC_MIN, le=METRIC_MAX)
+    redness: float = Field(ge=METRIC_MIN, le=METRIC_MAX)
+    rosacea: float = Field(ge=METRIC_MIN, le=METRIC_MAX)
+    dryness: float = Field(ge=METRIC_MIN, le=METRIC_MAX)
+    sensitivity: float = Field(ge=METRIC_MIN, le=METRIC_MAX)
+    irritation: float = Field(ge=METRIC_MIN, le=METRIC_MAX)
+    oiliness: float = Field(ge=METRIC_MIN, le=METRIC_MAX)
+    texture_irregularity: float = Field(ge=METRIC_MIN, le=METRIC_MAX)
+    acne_scarring: float = Field(ge=METRIC_MIN, le=METRIC_MAX)
+    enlarged_pores: float = Field(ge=METRIC_MIN, le=METRIC_MAX)
+    dark_circles: float = Field(ge=METRIC_MIN, le=METRIC_MAX)
+    uneven_skin_tone: float = Field(ge=METRIC_MIN, le=METRIC_MAX)
+
+
+# How an effect's magnitude grows with time; this is only the set of allowed names.
+TimeCurveType = Literal[
+    "linear",           # constant rate until full effect
+    "delayed_linear",   # nothing until delay_days, then constant rate
+    "exponential",      # fast early, diminishing returns: 1 - exp(-kt)
+    "logistic",         # slow, then fast, then plateau (sigmoid)
+]
+
+# Which way this effect pushes its metric. Note that "decrease" is not a
+# synonym for "good": decreasing oiliness helps oily skin and harms dry skin.
+# The engine models arithmetic direction; whether it is desirable is a
+# product-layer judgement made against the user's own profile.
+EffectDirection = Literal["increase", "decrease"]
+
+# Whether this effect is the reason to take the treatment, or the price of
+# taking it. This is a label for the UI and for scoring on Day 18; the engine
+# applies both kinds identically.
+EffectKind = Literal["therapeutic", "side_effect"]
+
+
+class TreatmentEffect(BaseModel):
+    """One treatment's influence on exactly one skin metric."""
+
+    model_config = {"extra": "forbid"}
+
+    target_metric: SkinMetricName
+    effect_kind: EffectKind
+    direction: EffectDirection
+
+    # Days before the effect begins to appear at all.
+    delay_days: int = Field(ge=0, le=365)
+
+    # Full magnitude in metric points, on the 0-10 scale, for a patient whose
+    # response multiplier is exactly 1.0. Always positive -- `direction`
+    # carries the sign, so a negative value here would be a contradiction the
+    # model should not be able to express.
+    mean_magnitude: float = Field(gt=0, le=10)
+
+    # Spread of individual response around mean_magnitude; it is a slot with a validated range.
+    uncertainty: float = Field(ge=0, le=5)
+
+    time_curve: TimeCurveType
+
+
+class TreatmentParameters(BaseModel):
+    """Everything the engine needs to simulate one treatment."""
+
+    model_config = {"extra": "forbid"}
+
+    # Stable slug: lowercase, digits and underscores only. This is the key
+    # that is matched against free-text AI research output, and that
+    # is accepted as an API parameter, so it must be URL-safe and stable.
+    treatment_id: str = Field(
+        min_length=1,
+        max_length=64,
+        pattern=r"^[a-z0-9_]+$",
+    )
+
+    display_name: str = Field(min_length=1, max_length=120)
+
+    # Which calibration produced these numbers. Same idea as RESEARCH_VERSION
+    # in services/treatment_research.py: bump it when the methodology changes
+    # so old cached simulation runs stop being served without being deleted.
+    parameter_version: str = Field(min_length=1, max_length=16)
+
+    effects: list[TreatmentEffect] = Field(min_length=1, max_length=20)
+
+
+class PatientResponse(BaseModel):
+    """How strongly one simulated individual responds, relative to the mean.
+
+    Multipliers, not offsets: 1.0 is an average responder, 1.4 is a strong
+    responder, 0.6 a weak one. Multiplicative because response scales with
+    effect size -- a strong responder gets more out of a strong treatment --
+    and because the scale is inherently non-negative.
+
+    These will be sampled per trial. This only fixes the representation; it
+    does not choose the distribution.
+    """
+
+    model_config = {"extra": "forbid"}
+
+    # gt=0: a negative multiplier would mean the treatment does the opposite
+    # of what it does, which is a different model, not a variant of this one.
+    response_multiplier: float = Field(gt=0)
+    side_effect_multiplier: float = Field(gt=0)
+
+
+class SimulationConfig(BaseModel):
+    """Run settings: how long, how finely, how many trials, and reproducibly."""
+
+    model_config = {"extra": "forbid"}
+
+    duration_days: int = Field(gt=0, le=730)
+    time_step_days: int = Field(default=1, gt=0, le=30)
+    n_trials: int = Field(default=1, ge=1, le=50_000)
+
+    # Fixing the seed makes a randomised run reproducible: same inputs plus
+    # same seed gives the same numbers every time. That is what lets a
+    # Monte Carlo result be asserted in a test, and what lets it compare
+    # treatments under identical noise instead of noise plus treatment.
+    random_seed: int | None = None
+
+
+class SimulationRequest(BaseModel):
+    """
+    Everything the engine needs for one run.
+    Becomes the POST /simulations request body.
+    """
+
+    model_config = {"extra": "forbid"}
+
+    initial_state: SkinState
+    treatment: TreatmentParameters
+    config: SimulationConfig
+
+    # A deterministic single run is given one explicit response;
+    # a Monte Carlo run leaves it None and the engine samples one per trial.
+    patient_response: PatientResponse | None = None
