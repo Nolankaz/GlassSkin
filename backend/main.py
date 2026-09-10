@@ -3,12 +3,7 @@ from schemas import SkinProfileRequest, SkinProfileUpdate
 from models import SkinProfile
 from fastapi.middleware.cors import CORSMiddleware
 from database import supabase
-from services.treatment_research import (
-    RESEARCH_VERSION,
-    generate_treatment_options,
-    TreatmentResearchError,
-)
-import asyncio
+from services.treatment_research import RESEARCH_VERSION, generate_treatment_options, TreatmentResearchError
 
 app = FastAPI()
 
@@ -16,9 +11,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
-        "http://localhost:3001",
         "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -53,10 +46,7 @@ def get_profile(profile_id: int):
         .execute()
     )
     if not response.data:
-        raise HTTPException(
-            status_code=404,
-            detail="Profile not found"
-        )
+        raise HTTPException(status_code=404, detail="Profile not found")
 
     return response.data[0]
 
@@ -125,6 +115,15 @@ def create_profile(data: SkinProfileRequest):
 
     return response.data[0]
 
+# Profile fields that appear in the text sent to the research model.
+# build_profile_context() in services/treatment_research.py reads age, gender
+# and every skin metric -- that is, everything SkinProfileUpdate accepts except
+# the profile's name. Deriving the set from the schema rather than listing the
+# fields means adding a metric to SkinProfileUpdate keeps invalidation correct
+# automatically.
+RESEARCH_RELEVANT_PROFILE_FIELDS = frozenset(SkinProfileUpdate.model_fields) - {"name"}
+
+
 @app.patch("/profiles/{profile_id}")
 def update_profile(profile_id: int, data: SkinProfileUpdate):
     update_data = data.model_dump(exclude_unset=True)
@@ -139,12 +138,11 @@ def update_profile(profile_id: int, data: SkinProfileUpdate):
     )
 
     if not response.data:
-        raise HTTPException(
-            status_code=404,
-            detail="Profile not found"
-        )
+        raise HTTPException(status_code=404, detail="Profile not found")
 
-    if update_data:
+    # Renaming a profile does not change what the research was based on, so
+    # it must not throw away a paid research run. Any other change does.
+    if RESEARCH_RELEVANT_PROFILE_FIELDS & update_data.keys():
         try:
             (
                 supabase
@@ -200,10 +198,7 @@ async def get_treatment_options(profile_id: int):
     )
 
     if not response.data:
-        raise HTTPException(
-            status_code=404,
-            detail="Profile not found"
-        )
+        raise HTTPException(status_code=404, detail="Profile not found")
 
     profile = response.data[0]
     saved_result = get_saved_treatment_research(profile_id)
@@ -219,10 +214,7 @@ async def get_treatment_options(profile_id: int):
         result = await generate_treatment_options(profile)
 
     except TreatmentResearchError:
-        raise HTTPException(
-            status_code=502,
-            detail="Unable to research treatment options"
-        )
+        raise HTTPException(status_code=502, detail="Unable to research treatment options")
 
     result_data = result.model_dump(mode="json")
 

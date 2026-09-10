@@ -99,7 +99,4 @@ class TreatmentOption(BaseModel):
     confidence: ConfidenceLevel
 
 class TreatmentResearchResult(BaseModel):
-    options: list[TreatmentOption] = Field(
-        min_length=1,
-        max_length=5
-    )
+    options: list[TreatmentOption] = Field(min_length=1, max_length=5)

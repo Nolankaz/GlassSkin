@@ -13,9 +13,7 @@ load_dotenv()
 api_key = os.getenv("OPENAI_API_KEY")
 
 if not api_key:
-    raise RuntimeError(
-        "OPENAI_API_KEY is not configured"
-    )
+    raise RuntimeError("OPENAI_API_KEY is not configured")
 
 client = AsyncOpenAI(api_key=api_key)
 
@@ -112,9 +110,7 @@ async def generate_treatment_options(profile: dict,) -> TreatmentResearchResult:
             tools=[
                 {
                     "type": "web_search",
-                    "filters": {
-                        "allowed_domains": TRUSTED_MEDICAL_DOMAINS
-                    },
+                    "filters": {"allowed_domains": TRUSTED_MEDICAL_DOMAINS},
                     "search_context_size": "low",
                 }
             ],
@@ -130,8 +126,6 @@ async def generate_treatment_options(profile: dict,) -> TreatmentResearchResult:
     result = response.output_parsed
 
     if result is None:
-        raise TreatmentResearchError(
-            "No structured treatment result was returned"
-        )
+        raise TreatmentResearchError("No structured treatment result was returned")
 
     return result
