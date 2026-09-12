@@ -1,11 +1,14 @@
 """Tests for the simulation domain model."""
 
+from typing import get_args
+
 import pytest
 
 from pydantic import ValidationError
 
 from schemas import SkinProfileRequest
 from simulation.models import (
+    CURVES_WITHOUT_DELAY,
     SKIN_METRIC_NAMES,
     PatientResponse,
     SimulationConfig,
@@ -32,6 +35,7 @@ def valid_effect(**overrides):
         delay_days=14,
         mean_magnitude=3.0,
         uncertainty=0.8,
+        time_scale_days=90.0,
         time_curve="logistic",
     )
 
@@ -59,6 +63,10 @@ def test_metric_names_match_profile_request_schema():
     )
 
     assert profile_metrics == set(SKIN_METRIC_NAMES)
+
+
+def test_curves_without_delay_are_declared_curve_names():
+    assert set(CURVES_WITHOUT_DELAY) <= set(get_args(TimeCurveType))
 
 
 # --- SkinState --------------------------------------------------------------
@@ -118,7 +126,47 @@ def test_effect_rejects_unknown_curve():
         TreatmentEffect(**valid_effect(time_curve="sigmoid"))
 
 
-@pytest.mark.parametrize("curve", TimeCurveType.__args__)
+def test_effect_requires_time_scale_days():
+    kwargs = valid_effect()
+    del kwargs["time_scale_days"]
+
+    with pytest.raises(ValidationError):
+        TreatmentEffect(**kwargs)
+
+
+@pytest.mark.parametrize("time_scale_days", [0, -0.1, -1])
+def test_effect_rejects_non_positive_time_scale_days(time_scale_days):
+    with pytest.raises(ValidationError):
+        TreatmentEffect(**valid_effect(time_scale_days=time_scale_days))
+
+
+def test_effect_rejects_time_scale_days_above_730():
+    with pytest.raises(ValidationError):
+        TreatmentEffect(**valid_effect(time_scale_days=730.1))
+
+
+def test_effect_coerces_integer_time_scale_days_to_float():
+    effect = TreatmentEffect(**valid_effect(time_scale_days=90))
+
+    assert effect.time_scale_days == 90.0
+    assert isinstance(effect.time_scale_days, float)
+
+
+def test_linear_effect_accepts_zero_delay():
+    assert TreatmentEffect(**valid_effect(time_curve="linear", delay_days=0)).delay_days == 0
+
+
+def test_linear_effect_rejects_nonzero_delay():
+    with pytest.raises(ValidationError, match="linear.*delayed_linear"):
+        TreatmentEffect(**valid_effect(time_curve="linear", delay_days=1))
+
+
+@pytest.mark.parametrize("curve", tuple(curve for curve in get_args(TimeCurveType) if curve not in CURVES_WITHOUT_DELAY))
+def test_delay_accepting_effect_curves_accept_nonzero_delay(curve):
+    assert TreatmentEffect(**valid_effect(time_curve=curve, delay_days=14)).delay_days == 14
+
+
+@pytest.mark.parametrize("curve", get_args(TimeCurveType))
 def test_every_declared_curve_is_constructible(curve):
     """Sweeping the Literal means adding a curve name to the type without
     implementing it on Day 9 will surface here rather than at runtime.
@@ -126,7 +174,7 @@ def test_every_declared_curve_is_constructible(curve):
 
     assert (
         TreatmentEffect(
-            **valid_effect(time_curve=curve)
+            **valid_effect(time_curve=curve, delay_days=0 if curve in CURVES_WITHOUT_DELAY else 14)
         ).time_curve
         == curve
     )

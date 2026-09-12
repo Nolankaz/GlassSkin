@@ -1,3 +1,9 @@
 -r requirements.txt
 
 pytest==9.1.1
+
+# Development only: nothing under simulation/ imports these; curves.py uses
+# only the standard library for curve arithmetic. NumPy moves to
+# requirements.txt when the engine is vectorised.
+numpy==2.5.3       # array tools for development and future vectorisation
+matplotlib==3.11.2 # renders development-only curve plots
