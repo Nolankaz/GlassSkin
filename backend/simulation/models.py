@@ -9,9 +9,9 @@ with a documented source per number; until then, any parameters used for
 testing are named FIXTURE_* and marked NOT MEDICAL.
 """
 
-from typing import Any, Literal, Mapping, get_args
+from typing import Literal, get_args
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # The 17 skin metrics, in the same order and with the same spelling as
@@ -80,6 +80,13 @@ TimeCurveType = Literal[
     "logistic",         # slow, then fast, then plateau (sigmoid)
 ]
 
+# These curve names mean "no latency", so pairing them with a non-zero
+# delay_days is a contradiction rather than a variation. The model validator
+# below and progress() in curves.py both read this tuple so the rule has one
+# definition. delayed_linear has the same arithmetic shape as linear and is
+# the name to use when a treatment does have a latency.
+CURVES_WITHOUT_DELAY: tuple[TimeCurveType, ...] = ("linear",)
+
 # Which way this effect pushes its metric. Note that "decrease" is not a
 # synonym for "good": decreasing oiliness helps oily skin and harms dry skin.
 # The engine models arithmetic direction; whether it is desirable is a
@@ -113,7 +120,32 @@ class TreatmentEffect(BaseModel):
     # Spread of individual response around mean_magnitude; it is a slot with a validated range.
     uncertainty: float = Field(ge=0, le=5)
 
+    # The curve's characteristic duration, measured from the end of the delay;
+    # its exact meaning depends on the curve. For linear and delayed_linear it
+    # is the number of days to reach full effect. For exponential it is the
+    # time constant, when about 63% of the full effect has appeared. For
+    # logistic it is the sigmoid's midpoint, when about 49% has appeared.
+    # le=730 matches SimulationConfig.duration_days: a time scale longer than
+    # the longest simulatable run describes an effect that never meaningfully
+    # appears. This field is deliberately required with no default because a
+    # default would be a treatment parameter invented by omission.
+    time_scale_days: float = Field(gt=0, le=730)
+
     time_curve: TimeCurveType
+
+    @model_validator(mode="after")
+    def validate_time_curve_delay(self):
+        """Reject a contradictory time-curve and delay combination.
+
+        Field constraints validate one field in isolation and cannot express a
+        contradictory combination; an after-validator sees the whole model.
+        Raising ValueError here is the documented contract; Pydantic wraps it
+        into ValidationError.
+        """
+
+        if self.time_curve in CURVES_WITHOUT_DELAY and self.delay_days > 0:
+            raise ValueError(f"{self.time_curve} means no latency and requires delay_days == 0; use delayed_linear when a non-zero delay is needed")
+        return self
 
 
 class TreatmentParameters(BaseModel):

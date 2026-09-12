@@ -21,3 +21,6 @@ frontend/out/
 
 # plans
 plans/
+
+# vscode settings
+.vscode/
