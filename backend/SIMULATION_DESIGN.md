@@ -79,6 +79,8 @@ Values above `1.0` represent a stronger response, while values below `1.0` repre
 
 This is separate from `TreatmentParameters` because treatment behavior and individual patient response are different concepts.
 
+Both multipliers must be positive and finite. `PatientResponse` rejects zero, negative, infinite and NaN values before they can enter simulation arithmetic.
+
 ---
 
 ### SimulationConfig
@@ -92,7 +94,7 @@ It contains:
 - number of trials
 - optional random seed
 
-The random seed allows a randomized simulation to be reproduced using the same inputs.
+The trial count and random seed are reserved for the later randomized layer. The Day 10 deterministic engine deliberately ignores both.
 
 ---
 
@@ -105,7 +107,25 @@ The random seed allows a randomized simulation to be reproduced using the same i
 - simulation configuration
 - optional patient response
 
-This will later become the input to the simulation engine and eventually the simulation API endpoint.
+This is planned as the eventual simulation API request body. Its patient response remains optional because later routing will distinguish a deterministic run from a Monte Carlo run. The current deterministic `simulate()` function does not consume `SimulationRequest`; it accepts the initial state, treatment, config and an explicit `PatientResponse` directly.
+
+---
+
+### Trajectory
+
+`Trajectory` represents one deterministic simulated path. It records:
+
+- `treatment_id`
+- `parameter_version`
+- `patient_response`
+- `times_days`
+- `states`
+
+`states[i]` is the validated `SkinState` at `times_days[i]`. A trajectory has at least two time points and states, the two lists have equal lengths, time starts at `0.0`, and times are finite and strictly increasing. Every state is validated independently, so its metrics remain inside `[0, 10]`.
+
+The model uses `list[SkinState]` instead of a NumPy array today because it is self-validating through Pydantic, directly JSON serializable, readable through named metrics, and keeps NumPy out of `simulation/`. Day 11 will use arrays for large Monte Carlo workloads rather than constructing thousands of Pydantic trajectories.
+
+`metric_series(metric)` extracts one named metric across all states in time order and rejects unknown metric names.
 
 ---
 
@@ -144,12 +164,112 @@ At very large elapsed times, floating-point underflow can make a saturating curv
 
 ---
 
+## Deterministic Engine
+
+`simulation/engine.py` composes the Day 8 models and Day 9 time curves into one deterministic trajectory. For metric `m` at time `t`, the rule is:
+
+```text
+S_m(t) = clamp(S_m(0) + Σ contributions_e(t))
+```
+
+Each effect targeting that metric contributes:
+
+```text
+direction_sign × mean_magnitude × patient_response_multiplier × progress(...)
+```
+
+`direction`, `mean_magnitude` and `effect_kind` come from the Day 8 models. Day 9's `progress()` and time curves determine how much of an effect has appeared at a requested time. Day 10 composes those pieces into deterministic `SkinState` values and a `Trajectory`.
+
+The engine layers are deliberately small:
+
+```text
+progress
+→ effect_contribution
+→ metric_deltas
+→ apply_deltas
+→ state_at
+→ simulate
+```
+
+- `progress()` returns the fraction of an effect realized at one time.
+- `effect_contribution()` applies direction, magnitude and the correct patient-response multiplier to that fraction.
+- `metric_deltas()` groups contributions by target metric and sums them.
+- `apply_deltas()` adds one complete delta mapping to the original state and clamps each resulting metric.
+- `state_at()` computes one state directly from the original state and requested time.
+- `simulate()` builds the time grid, maps `state_at()` over it, and returns a `Trajectory`.
+
+### Absolute Application
+
+Every state is computed directly from the original `SkinState` and the requested `t_days`:
+
+```text
+S(t) = clamp(S(0) + Σ contributions(t))
+```
+
+The engine is not cumulative and never computes a state from a previous simulated state. Cumulative application combined with clamping makes the result depend on time-step size: an intermediate clamp discards overshoot, so a later opposite effect starts from a different value depending on which intermediate times were evaluated. Absolute application avoids that numerical drift, makes states at shared times step-invariant, and permits Day 11 vectorization because no state depends on its predecessor.
+
+Table C in the deterministic test suite demonstrates the distinction with fixture values, not medical parameters:
+
+- initial dryness is `1.0`
+- one therapeutic effect decreases dryness by magnitude `3.0`, linearly over 10 days
+- one side effect increases dryness by magnitude `3.0`, using delayed linear progress with a 10-day delay and 10-day scale
+- the absolute result at day 10 is `0.0`
+- the absolute result at day 20 is `1.0`
+
+At day 20 the two full contributions cancel, so the result returns to the original `1.0`. A cumulative-with-clamping implementation can instead produce different answers depending on the step size because it repeatedly applies already-realized effects and clips intermediate states.
+
+### Superposition
+
+Effects targeting the same metric are superposed additively. Each effect produces a signed delta, all deltas for that metric are summed, and the complete sum is applied once to the original state. Treatment interactions are not modeled yet. Additive superposition is a modeling assumption, not a medical truth.
+
+The unclamped latent sum can exceed `[0, 10]`. In that case a later opposite effect must first overcome the latent overshoot before the visible clamped metric moves back inside the range. This follows directly from the absolute, clamp-after-summing rule.
+
+### Clamping
+
+Metric bounds are enforced in exactly one engine function: `clamp_metric()`. `apply_deltas()` sums all contributions for a metric, adds that sum to the initial value, and then clamps the result. The engine does not clamp each effect separately and does not clamp step-by-step.
+
+Finite results below `METRIC_MIN` or above `METRIC_MAX` are legitimate model outcomes and are clipped into `[METRIC_MIN, METRIC_MAX]` rather than treated as errors. `SkinState` validation remains a backstop if engine clamping is ever bypassed. Non-finite arithmetic is different: `clamp_metric()` checks `math.isfinite()` and raises instead of allowing NaN or infinity into a state.
+
+### Patient Response in Deterministic Mode
+
+`simulate()` requires an explicit `PatientResponse`; there is no hidden default responder. Therapeutic effects use `response_multiplier`, side effects use `side_effect_multiplier`, and `effect_kind` selects the field through `MULTIPLIER_FIELD_BY_KIND`.
+
+The `1.0 / 1.0` response is the reference responder by definition of `mean_magnitude`: that magnitude describes the full effect for a response multiplier of exactly `1.0`. Both multipliers are positive and finite because `PatientResponse` rejects invalid values at construction.
+
+### Stable Summation
+
+`metric_deltas()` uses `math.fsum()` because ordinary running floating-point addition can produce slightly different last-bit results when effects are reordered. Effect order should not change a deterministic trajectory. `math.fsum()` provides a more stable, correctly rounded sum, and the test suite explicitly verifies effect-order independence.
+
+### Time Grid
+
+`build_time_grid()` starts at `0.0`, uses integer multiples of `time_step_days`, and always includes the exact `duration_days` endpoint without duplicating it. The final interval may be shorter than the nominal step:
+
+```text
+90 / 1  → 0, 1, ..., 90
+90 / 7  → 0, 7, ..., 77, 84, 90
+90 / 30 → 0, 30, 60, 90
+5 / 30  → 0, 5
+```
+
+An uneven final interval is safe because the engine is absolute: the state depends on `t`, not on the length or result of the previous interval.
+
+### Inputs Reserved for Monte Carlo
+
+Deterministic `simulate()` deliberately ignores `SimulationConfig.n_trials`, `SimulationConfig.random_seed` and `TreatmentEffect.uncertainty`. Those inputs belong to the Day 11 Monte Carlo layer. The deterministic test suite explicitly verifies that changing them does not change deterministic output.
+
+### Development Inspection
+
+`notes/plot_trajectory.py` lives outside `simulation/` and uses Matplotlib only for development visualization. It runs one 90-day fixture trajectory, prints selected days, verifies that every untargeted metric remains bit-identical to its initial value, and plots the two targeted metrics plus an untargeted reference metric. The generated figure is written to `notes/trajectory.png`.
+
+---
+
 ## Core Invariants
 
-The simulation should always obey these rules:
+The simulation obeys these model, curve and deterministic-engine rules:
 
 - Every skin metric must remain between `0` and `10`.
 - `mean_magnitude` must always be positive.
+- `PatientResponse` multipliers must be finite and positive.
 - `direction` determines whether an effect increases or decreases a metric.
 - `SKIN_METRIC_NAMES`, `SkinState`, and the metric fields in `SkinProfileRequest` must always match.
 - Progress must always remain in `[0, 1]`.
@@ -158,6 +278,13 @@ The simulation should always obey these rules:
 - The curve-function registry must cover `TimeCurveType` exactly.
 - Unknown curve names and non-finite inputs must raise instead of producing a progress value.
 - Curve functions must be deterministic and pure.
+- Every trajectory state is computed from `initial_state` and `t_days` only.
+- `states[0] == initial_state`.
+- Untargeted metrics remain bit-identical to their initial values.
+- Results at times shared by different time grids are exactly step-invariant.
+- Reordering treatment effects does not change the trajectory.
+- Deterministic simulations are exactly repeatable for identical inputs.
+- Simulation inputs are not mutated.
 - The simulation package must remain a pure boundary with no FastAPI, Supabase, OpenAI, network, environment, clock, or randomness dependencies.
 
 These rules are enforced through Pydantic validation and automated tests.
@@ -219,20 +346,23 @@ Every real numerical treatment parameter should eventually have a documented sou
 
 Until real parameters are added, any values used for development or testing should be clearly labeled as fixture or non-medical values.
 
-The values in tests and `notes/plot_curves.py` are arbitrary illustrations marked **FIXTURE** and **NOT MEDICAL**. They are not treatment parameters or medical claims.
+The values in `notes/plot_curves.py` are arbitrary mathematical illustrations marked **FIXTURE** and **NOT MEDICAL**. They are not treatment parameters or medical claims.
+
+All treatments used in `tests/test_engine.py` and `notes/plot_trajectory.py` are arbitrary fixtures marked NOT MEDICAL. `simulation/` contains no treatment parameters of any kind.
 
 ---
 
 ## Deliberately Not Decided Yet
 
-The following parts of the simulation are intentionally left for later days:
+Day 10 fixed the deterministic application rule, additive superposition, clamp placement, time-grid construction and trajectory representation. The following parts remain intentionally unresolved for later work:
 
-- calibrated delay, time-scale, magnitude, and provenance for each treatment effect
-- response probability distributions
+- calibrated real treatment parameters and their provenance
+- Monte Carlo response distributions
 - exact curve choice for each treatment
 - treatment interactions
 - adherence
-- treatment discontinuation
+- treatment discontinuation and rebound
 - mapping clinical study outcomes onto the `0–10` scale
+- clinical validation
 
-Day 8 defines the simulation vocabulary and validation rules. Day 9 fixes the mathematical curve shapes and their invariants, so those shapes are no longer an open decision. Assigning a curve and calibrated delay, time scale, magnitude, and provenance to each real treatment remains future work.
+Day 8 defines the simulation vocabulary and validation rules. Day 9 fixes the mathematical curve shapes and their invariants. Day 10 composes them into an absolute deterministic trajectory. Assigning a curve and calibrated delay, time scale, magnitude and provenance to each real treatment remains future work.

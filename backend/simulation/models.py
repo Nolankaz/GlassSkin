@@ -184,7 +184,7 @@ class PatientResponse(BaseModel):
     does not choose the distribution.
     """
 
-    model_config = {"extra": "forbid"}
+    model_config = {"extra": "forbid", "allow_inf_nan": False}
 
     # gt=0: a negative multiplier would mean the treatment does the opposite
     # of what it does, which is a different model, not a variant of this one.
@@ -223,3 +223,36 @@ class SimulationRequest(BaseModel):
     # A deterministic single run is given one explicit response;
     # a Monte Carlo run leaves it None and the engine samples one per trial.
     patient_response: PatientResponse | None = None
+
+
+class Trajectory(BaseModel):
+    """One deterministic simulated trajectory produced by simulation.engine.simulate.
+
+    states[i] corresponds to times_days[i], and states[0] is the initial skin
+    state. Later Monte Carlo work will aggregate many simulated paths rather
+    than storing thousands of these Pydantic objects.
+    """
+
+    model_config = {"extra": "forbid", "allow_inf_nan": False}
+
+    treatment_id: str = Field(min_length=1, max_length=64, pattern=r"^[a-z0-9_]+$")
+    parameter_version: str = Field(min_length=1, max_length=16)
+    patient_response: PatientResponse
+    times_days: list[float] = Field(min_length=2)
+    states: list[SkinState] = Field(min_length=2)
+
+    @model_validator(mode="after")
+    def validate_structure(self):
+        if len(self.times_days) != len(self.states):
+            raise ValueError(f"times_days and states must have equal lengths; got {len(self.times_days)} times and {len(self.states)} states")
+        if self.times_days[0] != 0.0:
+            raise ValueError("times_days[0] must be 0.0 so the trajectory begins at treatment start")
+        for index in range(1, len(self.times_days)):
+            if self.times_days[index] <= self.times_days[index - 1]:
+                raise ValueError(f"times_days must be strictly increasing; violation at index {index}")
+        return self
+
+    def metric_series(self, metric: SkinMetricName) -> list[float]:
+        if metric not in SKIN_METRIC_NAMES:
+            raise ValueError(f"unknown skin metric: {metric}")
+        return [getattr(state, metric) for state in self.states]
