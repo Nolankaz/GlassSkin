@@ -14,6 +14,7 @@ from simulation.models import (
     SimulationConfig,
     SkinState,
     TimeCurveType,
+    Trajectory,
     TreatmentEffect,
     TreatmentParameters,
 )
@@ -37,6 +38,19 @@ def valid_effect(**overrides):
         uncertainty=0.8,
         time_scale_days=90.0,
         time_curve="logistic",
+    )
+
+    kwargs.update(overrides)
+    return kwargs
+
+
+def valid_trajectory_kwargs(**overrides):
+    kwargs = dict(
+        treatment_id="fixture_treatment",
+        parameter_version="fixture",
+        patient_response=PatientResponse(response_multiplier=1.0, side_effect_multiplier=1.0),
+        times_days=[0.0, 1.0, 2.0],
+        states=[SkinState(**valid_state_kwargs()) for _ in range(3)],
     )
 
     kwargs.update(overrides)
@@ -236,6 +250,15 @@ def test_response_multiplier_must_be_positive(bad):
         PatientResponse(response_multiplier=bad, side_effect_multiplier=1.0,)
 
 
+@pytest.mark.parametrize("field", ["response_multiplier", "side_effect_multiplier"])
+@pytest.mark.parametrize("bad_value", [float("inf"), float("-inf"), float("nan")])
+def test_patient_response_rejects_non_finite_multipliers(field, bad_value):
+    kwargs = {"response_multiplier": 1.0, "side_effect_multiplier": 1.0, field: bad_value}
+
+    with pytest.raises(ValidationError):
+        PatientResponse(**kwargs)
+
+
 def test_config_defaults():
     config = SimulationConfig(duration_days=90)
 
@@ -251,3 +274,76 @@ def test_config_caps_trial_count():
 
     with pytest.raises(ValidationError):
         SimulationConfig(duration_days=90, n_trials=10_000_000,)
+
+
+# --- Trajectory -------------------------------------------------------------
+
+def test_valid_trajectory_constructs():
+    trajectory = Trajectory(**valid_trajectory_kwargs())
+
+    assert trajectory.times_days == [0.0, 1.0, 2.0]
+
+
+@pytest.mark.parametrize(
+    ("times_days", "state_count"),
+    [([0.0, 1.0, 2.0], 2), ([0.0, 1.0], 3)],
+)
+def test_trajectory_rejects_mismatched_lengths(times_days, state_count):
+    states = [SkinState(**valid_state_kwargs()) for _ in range(state_count)]
+
+    with pytest.raises(ValidationError):
+        Trajectory(**valid_trajectory_kwargs(times_days=times_days, states=states))
+
+
+def test_trajectory_rejects_one_point():
+    states = [SkinState(**valid_state_kwargs())]
+
+    with pytest.raises(ValidationError):
+        Trajectory(**valid_trajectory_kwargs(times_days=[0.0], states=states))
+
+
+def test_trajectory_must_start_at_zero():
+    with pytest.raises(ValidationError):
+        Trajectory(**valid_trajectory_kwargs(times_days=[1.0, 2.0, 3.0]))
+
+
+def test_trajectory_rejects_repeated_time():
+    with pytest.raises(ValidationError):
+        Trajectory(**valid_trajectory_kwargs(times_days=[0.0, 1.0, 1.0]))
+
+
+def test_trajectory_rejects_decreasing_time():
+    with pytest.raises(ValidationError):
+        Trajectory(**valid_trajectory_kwargs(times_days=[0.0, 2.0, 1.0]))
+
+
+def test_trajectory_rejects_nan_time():
+    with pytest.raises(ValidationError):
+        Trajectory(**valid_trajectory_kwargs(times_days=[0.0, float("nan"), 2.0]))
+
+
+def test_trajectory_rejects_unknown_field():
+    with pytest.raises(ValidationError):
+        Trajectory(**valid_trajectory_kwargs(unknown="value"))
+
+
+def test_trajectory_json_round_trips():
+    """This matches the trajectory shape that Day 14 stores and Day 15 renders."""
+
+    trajectory = Trajectory(**valid_trajectory_kwargs())
+
+    assert Trajectory.model_validate_json(trajectory.model_dump_json()) == trajectory
+
+
+def test_trajectory_metric_series_returns_values_in_order():
+    states = [SkinState(**valid_state_kwargs(redness=redness)) for redness in (2.0, 4.5, 7.0)]
+    trajectory = Trajectory(**valid_trajectory_kwargs(states=states))
+
+    assert trajectory.metric_series("redness") == [2.0, 4.5, 7.0]
+
+
+def test_trajectory_metric_series_rejects_unknown_metric():
+    trajectory = Trajectory(**valid_trajectory_kwargs())
+
+    with pytest.raises(ValueError):
+        trajectory.metric_series("reddness")
