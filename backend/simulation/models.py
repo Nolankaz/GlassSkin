@@ -9,7 +9,7 @@ with a documented source per number; until then, any parameters used for
 testing are named FIXTURE_* and marked NOT MEDICAL.
 """
 
-from typing import Literal, get_args
+from typing import Annotated, Literal, get_args
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -46,6 +46,15 @@ SKIN_METRIC_NAMES: tuple[str, ...] = get_args(SkinMetricName)
 # no arithmetic anywhere is allowed to produce a state outside this range.
 METRIC_MIN = 0.0
 METRIC_MAX = 10.0
+BandValue = Annotated[float, Field(ge=METRIC_MIN, le=METRIC_MAX)]
+
+
+def _validate_time_axis(times_days: list[float]) -> None:
+    if times_days[0] != 0.0:
+        raise ValueError("times_days[0] must be 0.0 so the trajectory begins at treatment start")
+    for index in range(1, len(times_days)):
+        if times_days[index] <= times_days[index - 1]:
+            raise ValueError(f"times_days must be strictly increasing; violation at index {index}")
 
 
 class SkinState(BaseModel):
@@ -94,8 +103,8 @@ CURVES_WITHOUT_DELAY: tuple[TimeCurveType, ...] = ("linear",)
 EffectDirection = Literal["increase", "decrease"]
 
 # Whether this effect is the reason to take the treatment, or the price of
-# taking it. This is a label for the UI and for scoring on Day 18; the engine
-# applies both kinds identically.
+# taking it. The kind selects which PatientResponse multiplier the deterministic
+# engine uses and which latent response the Monte Carlo layer shares.
 EffectKind = Literal["therapeutic", "side_effect"]
 
 
@@ -117,7 +126,9 @@ class TreatmentEffect(BaseModel):
     # model should not be able to express.
     mean_magnitude: float = Field(gt=0, le=10)
 
-    # Spread of individual response around mean_magnitude; it is a slot with a validated range.
+    # Spread in metric points, like mean_magnitude. Monte Carlo interprets
+    # uncertainty / mean_magnitude as the log-scale standard deviation of the
+    # response multiplier; 0 means every patient responds at the reference magnitude.
     uncertainty: float = Field(ge=0, le=5)
 
     # The curve's characteristic duration, measured from the end of the delay;
@@ -175,13 +186,14 @@ class TreatmentParameters(BaseModel):
 class PatientResponse(BaseModel):
     """How strongly one simulated individual responds, relative to the mean.
 
-    Multipliers, not offsets: 1.0 is an average responder, 1.4 is a strong
+    Multipliers, not offsets: 1.0 is a reference responder, 1.4 is a strong
     responder, 0.6 a weak one. Multiplicative because response scales with
     effect size -- a strong responder gets more out of a strong treatment --
     and because the scale is inherently non-negative.
 
-    These will be sampled per trial. This only fixes the representation; it
-    does not choose the distribution.
+    Monte Carlo samples a median-1 log-normal response per effect kind per trial,
+    so 1.0 / 1.0 is the median/reference responder. The distribution belongs in
+    the future simulation/monte_carlo.py implementation.
     """
 
     model_config = {"extra": "forbid", "allow_inf_nan": False}
@@ -245,14 +257,68 @@ class Trajectory(BaseModel):
     def validate_structure(self):
         if len(self.times_days) != len(self.states):
             raise ValueError(f"times_days and states must have equal lengths; got {len(self.times_days)} times and {len(self.states)} states")
-        if self.times_days[0] != 0.0:
-            raise ValueError("times_days[0] must be 0.0 so the trajectory begins at treatment start")
-        for index in range(1, len(self.times_days)):
-            if self.times_days[index] <= self.times_days[index - 1]:
-                raise ValueError(f"times_days must be strictly increasing; violation at index {index}")
+        _validate_time_axis(self.times_days)
         return self
 
     def metric_series(self, metric: SkinMetricName) -> list[float]:
         if metric not in SKIN_METRIC_NAMES:
             raise ValueError(f"unknown skin metric: {metric}")
         return [getattr(state, metric) for state in self.states]
+
+
+class PercentileBand(BaseModel):
+    """One skin metric's marginal p10/p50/p90 values across time.
+
+    Each list contains one value per time point. These are marginal percentiles,
+    so the p50 list is not necessarily one patient's trajectory.
+    """
+
+    model_config = {"extra": "forbid", "allow_inf_nan": False}
+
+    p10: list[BandValue]
+    p50: list[BandValue]
+    p90: list[BandValue]
+
+    @model_validator(mode="after")
+    def validate_structure(self):
+        lengths = (len(self.p10), len(self.p50), len(self.p90))
+        if len(set(lengths)) != 1:
+            raise ValueError(f"p10, p50, and p90 must have equal lengths; got p10={lengths[0]}, p50={lengths[1]}, p90={lengths[2]}")
+        for index, values in enumerate(zip(self.p10, self.p50, self.p90)):
+            if not values[0] <= values[1] <= values[2]:
+                raise ValueError(f"percentile values must satisfy p10 <= p50 <= p90; violation at index {index}")
+        return self
+
+
+class MonteCarloResult(BaseModel):
+    """Aggregated output of the future simulation.monte_carlo.simulate_many.
+
+    bands[metric].p50[i] is that metric's median across trials at times_days[i].
+    Raw trial trajectories are deliberately not stored in this model.
+    """
+
+    model_config = {"extra": "forbid", "allow_inf_nan": False}
+
+    treatment_id: str = Field(min_length=1, max_length=64, pattern=r"^[a-z0-9_]+$")
+    parameter_version: str = Field(min_length=1, max_length=16)
+    n_trials: int = Field(ge=1)
+    random_seed: int = Field(ge=0)
+    times_days: list[float] = Field(min_length=2)
+    bands: dict[SkinMetricName, PercentileBand]
+
+    @model_validator(mode="after")
+    def validate_structure(self):
+        _validate_time_axis(self.times_days)
+        missing_metrics = [metric for metric in SKIN_METRIC_NAMES if metric not in self.bands]
+        if missing_metrics:
+            raise ValueError(f"bands must contain every skin metric; missing: {', '.join(missing_metrics)}")
+        expected_length = len(self.times_days)
+        for metric, band in self.bands.items():
+            if len(band.p50) != expected_length:
+                raise ValueError(f"band for {metric} must have {expected_length} values to match times_days; got {len(band.p50)}")
+        return self
+
+    def metric_band(self, metric: SkinMetricName) -> PercentileBand:
+        if metric not in SKIN_METRIC_NAMES:
+            raise ValueError(f"unknown skin metric: {metric}")
+        return self.bands[metric]

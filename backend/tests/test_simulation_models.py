@@ -10,7 +10,9 @@ from schemas import SkinProfileRequest
 from simulation.models import (
     CURVES_WITHOUT_DELAY,
     SKIN_METRIC_NAMES,
+    MonteCarloResult,
     PatientResponse,
+    PercentileBand,
     SimulationConfig,
     SkinState,
     TimeCurveType,
@@ -53,6 +55,25 @@ def valid_trajectory_kwargs(**overrides):
         states=[SkinState(**valid_state_kwargs()) for _ in range(3)],
     )
 
+    kwargs.update(overrides)
+    return kwargs
+
+
+def valid_band_kwargs(length, **overrides):
+    kwargs = {"p10": [4.0] * length, "p50": [5.0] * length, "p90": [6.0] * length}
+    kwargs.update(overrides)
+    return kwargs
+
+
+def valid_monte_carlo_result_kwargs(**overrides):
+    kwargs = dict(
+        treatment_id="fixture_treatment",
+        parameter_version="fixture",
+        n_trials=10_000,
+        random_seed=42,
+        times_days=[0.0, 1.0, 2.0],
+        bands={metric: PercentileBand(**valid_band_kwargs(3)) for metric in SKIN_METRIC_NAMES},
+    )
     kwargs.update(overrides)
     return kwargs
 
@@ -347,3 +368,126 @@ def test_trajectory_metric_series_rejects_unknown_metric():
 
     with pytest.raises(ValueError):
         trajectory.metric_series("reddness")
+
+
+# --- PercentileBand ---------------------------------------------------------
+
+def test_valid_percentile_band_constructs():
+    band = PercentileBand(**valid_band_kwargs(3))
+
+    assert band.p50 == [5.0, 5.0, 5.0]
+
+
+def test_percentile_band_rejects_unequal_lengths():
+    with pytest.raises(ValidationError, match=r"p10=3, p50=2, p90=1"):
+        PercentileBand(**valid_band_kwargs(3, p50=[5.0, 5.0], p90=[6.0]))
+
+
+def test_percentile_band_rejects_p10_above_p50():
+    with pytest.raises(ValidationError, match="index 1"):
+        PercentileBand(**valid_band_kwargs(3, p10=[4.0, 5.5, 4.0]))
+
+
+def test_percentile_band_rejects_p50_above_p90():
+    with pytest.raises(ValidationError, match="index 1"):
+        PercentileBand(**valid_band_kwargs(3, p50=[5.0, 6.5, 5.0]))
+
+
+def test_percentile_band_allows_equal_values():
+    band = PercentileBand(p10=[5.0, 5.0], p50=[5.0, 5.0], p90=[5.0, 5.0])
+
+    assert band.p10 == band.p50 == band.p90
+
+
+@pytest.mark.parametrize("bad_value", [10.5, -0.5, float("nan"), float("inf")])
+def test_percentile_band_rejects_invalid_values(bad_value):
+    with pytest.raises(ValidationError):
+        PercentileBand(**valid_band_kwargs(3, p50=[5.0, bad_value, 5.0]))
+
+
+def test_percentile_band_rejects_unknown_field():
+    with pytest.raises(ValidationError):
+        PercentileBand(**valid_band_kwargs(3), unknown="value")
+
+
+# --- MonteCarloResult -------------------------------------------------------
+
+def test_valid_monte_carlo_result_constructs():
+    result = MonteCarloResult(**valid_monte_carlo_result_kwargs())
+
+    assert result.n_trials == 10_000
+
+
+def test_monte_carlo_result_rejects_missing_metric():
+    bands = valid_monte_carlo_result_kwargs()["bands"]
+    del bands["redness"]
+
+    with pytest.raises(ValidationError, match="redness"):
+        MonteCarloResult(**valid_monte_carlo_result_kwargs(bands=bands))
+
+
+def test_monte_carlo_result_rejects_unknown_metric():
+    bands = valid_monte_carlo_result_kwargs()["bands"]
+    bands["reddness"] = PercentileBand(**valid_band_kwargs(3))
+
+    with pytest.raises(ValidationError):
+        MonteCarloResult(**valid_monte_carlo_result_kwargs(bands=bands))
+
+
+def test_monte_carlo_result_rejects_short_band():
+    bands = valid_monte_carlo_result_kwargs()["bands"]
+    bands["redness"] = PercentileBand(**valid_band_kwargs(2))
+
+    with pytest.raises(ValidationError, match=r"redness.*got 2"):
+        MonteCarloResult(**valid_monte_carlo_result_kwargs(bands=bands))
+
+
+def test_monte_carlo_result_must_start_at_zero():
+    with pytest.raises(ValidationError):
+        MonteCarloResult(**valid_monte_carlo_result_kwargs(times_days=[1.0, 2.0, 3.0]))
+
+
+def test_monte_carlo_result_rejects_repeated_time():
+    with pytest.raises(ValidationError):
+        MonteCarloResult(**valid_monte_carlo_result_kwargs(times_days=[0.0, 1.0, 1.0]))
+
+
+def test_monte_carlo_result_rejects_zero_trials():
+    with pytest.raises(ValidationError):
+        MonteCarloResult(**valid_monte_carlo_result_kwargs(n_trials=0))
+
+
+def test_monte_carlo_result_rejects_none_seed():
+    with pytest.raises(ValidationError):
+        MonteCarloResult(**valid_monte_carlo_result_kwargs(random_seed=None))
+
+
+def test_monte_carlo_result_rejects_negative_seed():
+    with pytest.raises(ValidationError):
+        MonteCarloResult(**valid_monte_carlo_result_kwargs(random_seed=-1))
+
+
+def test_monte_carlo_result_rejects_unknown_field():
+    with pytest.raises(ValidationError):
+        MonteCarloResult(**valid_monte_carlo_result_kwargs(unknown="value"))
+
+
+def test_monte_carlo_result_json_round_trips():
+    """This is the shape later API/persistence and plotting code will use."""
+
+    result = MonteCarloResult(**valid_monte_carlo_result_kwargs())
+
+    assert MonteCarloResult.model_validate_json(result.model_dump_json()) == result
+
+
+def test_monte_carlo_result_metric_band_returns_band():
+    result = MonteCarloResult(**valid_monte_carlo_result_kwargs())
+
+    assert result.metric_band("redness") == result.bands["redness"]
+
+
+def test_monte_carlo_result_metric_band_rejects_unknown_metric():
+    result = MonteCarloResult(**valid_monte_carlo_result_kwargs())
+
+    with pytest.raises(ValueError):
+        result.metric_band("reddness")

@@ -73,7 +73,7 @@ It contains:
 - `response_multiplier`
 - `side_effect_multiplier`
 
-A value of `1.0` represents an average response.
+A value of `1.0` represents the median/reference response.
 
 Values above `1.0` represent a stronger response, while values below `1.0` represent a weaker response.
 
@@ -94,7 +94,7 @@ It contains:
 - number of trials
 - optional random seed
 
-The trial count and random seed are reserved for the later randomized layer. The Day 10 deterministic engine deliberately ignores both.
+The Monte Carlo layer uses the trial count and requires a nonnegative random seed. The deterministic engine deliberately ignores both.
 
 ---
 
@@ -123,7 +123,7 @@ This is planned as the eventual simulation API request body. Its patient respons
 
 `states[i]` is the validated `SkinState` at `times_days[i]`. A trajectory has at least two time points and states, the two lists have equal lengths, time starts at `0.0`, and times are finite and strictly increasing. Every state is validated independently, so its metrics remain inside `[0, 10]`.
 
-The model uses `list[SkinState]` instead of a NumPy array today because it is self-validating through Pydantic, directly JSON serializable, readable through named metrics, and keeps NumPy out of `simulation/`. Day 11 will use arrays for large Monte Carlo workloads rather than constructing thousands of Pydantic trajectories.
+The model uses `list[SkinState]` instead of a NumPy array because it is self-validating through Pydantic, directly JSON serializable, and readable through named metrics. Monte Carlo uses arrays internally for large workloads rather than constructing thousands of Pydantic trajectories.
 
 `metric_series(metric)` extracts one named metric across all states in time order and rejects unknown metric names.
 
@@ -253,19 +253,222 @@ The `1.0 / 1.0` response is the reference responder by definition of `mean_magni
 
 An uneven final interval is safe because the engine is absolute: the state depends on `t`, not on the length or result of the previous interval.
 
-### Inputs Reserved for Monte Carlo
+### Inputs Used by Monte Carlo
 
-Deterministic `simulate()` deliberately ignores `SimulationConfig.n_trials`, `SimulationConfig.random_seed` and `TreatmentEffect.uncertainty`. Those inputs belong to the Day 11 Monte Carlo layer. The deterministic test suite explicitly verifies that changing them does not change deterministic output.
+Deterministic `simulate()` deliberately ignores `SimulationConfig.n_trials`, `SimulationConfig.random_seed` and `TreatmentEffect.uncertainty`. The Monte Carlo layer consumes those inputs without altering deterministic behavior. The deterministic test suite explicitly verifies that changing them does not change deterministic output.
 
 ### Development Inspection
 
 `notes/plot_trajectory.py` lives outside `simulation/` and uses Matplotlib only for development visualization. It runs one 90-day fixture trajectory, prints selected days, verifies that every untargeted metric remains bit-identical to its initial value, and plots the two targeted metrics plus an untargeted reference metric. The generated figure is written to `notes/trajectory.png`.
 
+## Monte Carlo
+
+Day 10 produces one deterministic trajectory for one explicit `PatientResponse`. Day 11 samples many patient responses and summarizes the resulting trajectories with percentile bands. Monte Carlo changes the simulated patient response, not the deterministic treatment mechanics.
+
+The underlying composition rules remain:
+
+```text
+signed magnitude
+× patient-response multiplier
+× curve progress
+→ per-effect contribution
+
+sum contributions targeting the same metric
+→ metric delta
+
+initial state + total delta
+→ latent state
+
+clamp once to [0, 10]
+→ final state
+```
+
+### Sampled Patient Response
+
+Each simulated patient receives exactly two independent standard-normal latent values:
+
+```text
+z_ther ~ N(0, 1)
+z_side  ~ N(0, 1)
+```
+
+`z_ther` represents therapeutic response tendency and is shared by all therapeutic effects for that patient. `z_side` represents side-effect response tendency and is shared by all side-effect effects. Each effect still has its own response spread.
+
+### Fixed Treatment Assumptions
+
+Monte Carlo does not sample or vary:
+
+- initial skin state
+- effect direction
+- mean/reference magnitude
+- the uncertainty parameter itself
+- delay
+- time scale
+- curve type
+- time grid
+- treatment structure
+
+The resulting bands represent **between-patient variability under fixed treatment assumptions**. They are not parameter uncertainty, model uncertainty, or confidence intervals on a population mean or median.
+
+### Response Distribution
+
+For effect `e`, the log-scale spread and patient-specific multiplier are:
+
+```text
+sigma_e = uncertainty_e / mean_magnitude_e
+multiplier_i,e = exp(sigma_e * z_i,kind)
+```
+
+This is a positive multiplicative response model. `MAX_RESPONSE_LOG_SD = 2.0` limits the permitted log-scale spread as a numerical and model-validity guard; it is not a medical threshold.
+
+The implementation uses `exp(sigma * z)`, not a mean-centered form such as `exp(sigma * z - sigma^2 / 2)`, because the required invariant is:
+
+```text
+z = 0
+→ multiplier = 1
+```
+
+for every `sigma`. The multiplier-1 deterministic responder is therefore the median/reference responder. Under this stochastic interpretation, the existing `mean_magnitude` field behaves as the magnitude for that median/reference responder. The field is retained for compatibility, but its calibration semantics must be handled carefully when real study values are introduced.
+
+### Shared Responses by Effect Kind
+
+Within one patient, effects of the same kind use the same latent response but may have different multipliers because their spreads differ:
+
+```text
+therapeutic effects:
+exp(sigma_1 * z_ther)
+exp(sigma_2 * z_ther)
+exp(sigma_3 * z_ther)
+
+side-effect effects:
+exp(sigma_4 * z_side)
+exp(sigma_5 * z_side)
+```
+
+Same-kind effects therefore move together according to the patient's shared latent response, while differing in strength according to their individual `sigma` values. Same-kind effects are not currently independently sampled within one patient.
+
+### Seeds and Reproducibility
+
+Monte Carlo requires a nonnegative `random_seed`; `None` and negative seeds are rejected. Each run creates a local generator with `np.random.default_rng(seed)` rather than using global NumPy or Python random state. The reproducibility invariant is:
+
+```text
+same inputs + same seed
+→ same sampled patients
+→ same public result
+```
+
+Latent responses are sampled row-major with shape `(n_trials, 2)`, which also provides prefix stability:
+
+```text
+same seed + 10 trials
+==
+first 10 rows of same seed + 100 trials
+```
+
+The number of random draws is independent of the number of treatment effects. The same seed can therefore represent the same simulated patient population across different treatment structures, supporting future fair treatment comparisons through common random numbers. Treatment comparison is not implemented here.
+
+### Reference and Production Implementations
+
+`simulate_trials_naive` and `simulate_many_naive` form the deliberately slow, readable reference path. It reuses the trusted Day 10 scalar primitives and is a permanent correctness oracle; it must not be deleted merely because it is slower.
+
+`simulate_trials_vectorised` and `simulate_many` form the NumPy-vectorised production path. Both public paths share seed handling, sampling, percentile aggregation, and result construction. Only trial-state computation differs.
+
+The trust chain is:
+
+```text
+Day 10 deterministic engine
+→ special-case oracle checks
+→ naive Monte Carlo
+→ vectorised Monte Carlo
+→ public percentile result
+```
+
+### Vectorised Representation
+
+Using `T` for trials/patients, `E` for effects, `S` for time steps, and `M` for metrics, the main arrays are:
+
+```text
+log_responses          (T, 2)
+selected responses     (T, E)
+multipliers            (T, E)
+progress table         (E, S)
+contributions          (T, E, S)
+deltas                 (T, S, M)
+final states           (T, S, M)
+```
+
+The first axis of trial-state arrays identifies the simulated patient, the second identifies time, and the third identifies the skin metric. Effect-indexed arrays use the treatment's effect order.
+
+Curve progress remains evaluated with the trusted scalar `progress(...)` function to build the small `(E, S)` table. This is intentional: patient count is the expensive dimension, while the number of effects and time points is comparatively small. There is no second vectorised implementation of the curve equations.
+
+### Vectorisation Correctness Boundaries
+
+Multiple effects may target the same metric. The vectorised implementation intentionally loops over effects and adds each full `(T, S)` contribution matrix to its target metric slice. This avoids incorrect repeated-index accumulation behavior from NumPy fancy indexing and should not be casually removed as an optimization.
+
+Latent states are explicitly checked with `np.isfinite(...)` before final clipping. This ordering matters because `np.clip(np.nan, 0, 10)` still produces `nan`.
+
+Naive and vectorised outputs must agree within:
+
+```text
+atol = 1e-10
+rtol = 0
+```
+
+Tiny differences can arise from floating-point operation order even when the mathematics is equivalent. Other invariants are exact, including same-seed reproducibility, prefix stability, zero-uncertainty zero-width bands, and untargeted metrics remaining unchanged.
+
+### Percentile Bands
+
+Public bands are calculated across the patient/trial axis using:
+
+```python
+np.percentile(
+    trial_states,
+    (10, 50, 90),
+    axis=0,
+    method="linear",
+)
+```
+
+The result contains p10, p50, and p90 at every time point and metric. These are **marginal percentiles**: the p10 value at Day 30 and the p10 value at Day 60 need not come from the same simulated patient. Percentile lines are therefore not fixed individual trajectories. For a metric being decreased, a lower state percentile can correspond to stronger responders.
+
+Percentile estimates also have finite-sample Monte Carlo error, with rough scaling `error ~ 1 / sqrt(n_trials)`. This sampling error is separate from the between-patient variability represented by the bands.
+
+### Performance and Memory
+
+Step 6 development-machine measurements for the complete public paths were approximately:
+
+| Trials | Vectorised | Naive |
+|---:|---:|---:|
+| 1,000 | 0.0068 s | 0.67 s |
+| 10,000 | 0.1198 s | 6.80 s |
+| 50,000 | 0.6345 s | not run |
+
+These timings naturally vary by machine and system load. The Step 6 target of less than one second for 10,000 trials over the 90-day daily fixture passed comfortably.
+
+The full raw trial-state array requires approximately:
+
+```text
+8 * T * S * M bytes
+```
+
+At the maximum theoretical grid used for inspection:
+
+```text
+50,000 trials × 731 time points × 17 metrics × 8 bytes
+≈ 4.63 GiB
+```
+
+This excludes temporary and intermediate arrays. Current performance is sufficient for the 90-day daily fixture workload, but maximum-resolution configurations can become memory-heavy. Possible future mitigations include server-side limits, chunking, streaming aggregation, or other measured memory optimizations; none are implemented in Day 11.
+
+### Fan-Chart Interpretation
+
+The Step 6 fan chart displays p10–p90 as the middle 80% of simulated patient outcomes at each day, p50 as the Monte Carlo median, and the dashed deterministic line as the multiplier-1 reference responder. It confirms that delayed acne effects keep bands closed through the delay, uncertainty opens after effects begin, clamping can make bands asymmetric, and untargeted metrics remain flat with zero-width bands. For multi-kind metrics such as dryness, p50 can be near but not exactly equal to the deterministic reference.
+
 ---
 
 ## Core Invariants
 
-The simulation obeys these model, curve and deterministic-engine rules:
+The simulation obeys these model, curve, deterministic-engine, and Monte Carlo rules:
 
 - Every skin metric must remain between `0` and `10`.
 - `mean_magnitude` must always be positive.
@@ -285,7 +488,11 @@ The simulation obeys these model, curve and deterministic-engine rules:
 - Reordering treatment effects does not change the trajectory.
 - Deterministic simulations are exactly repeatable for identical inputs.
 - Simulation inputs are not mutated.
-- The simulation package must remain a pure boundary with no FastAPI, Supabase, OpenAI, network, environment, clock, or randomness dependencies.
+- The simulation package must remain a pure boundary with no FastAPI, Supabase, OpenAI, network, environment, or clock dependencies.
+- Deterministic simulation modules have no randomness dependencies.
+- Monte Carlo randomness comes only from a local seeded NumPy generator.
+- Monte Carlo public results contain all metrics and only percentile bands, not raw trials.
+- Naive and vectorised trial paths agree within the documented numerical tolerance.
 
 These rules are enforced through Pydantic validation and automated tests.
 
@@ -354,10 +561,9 @@ All treatments used in `tests/test_engine.py` and `notes/plot_trajectory.py` are
 
 ## Deliberately Not Decided Yet
 
-Day 10 fixed the deterministic application rule, additive superposition, clamp placement, time-grid construction and trajectory representation. The following parts remain intentionally unresolved for later work:
+Days 10 and 11 fixed deterministic composition, Monte Carlo patient-response sampling, percentile aggregation and vectorised execution. The following parts remain intentionally unresolved for later work:
 
 - calibrated real treatment parameters and their provenance
-- Monte Carlo response distributions
 - exact curve choice for each treatment
 - treatment interactions
 - adherence
@@ -365,4 +571,4 @@ Day 10 fixed the deterministic application rule, additive superposition, clamp p
 - mapping clinical study outcomes onto the `0–10` scale
 - clinical validation
 
-Day 8 defines the simulation vocabulary and validation rules. Day 9 fixes the mathematical curve shapes and their invariants. Day 10 composes them into an absolute deterministic trajectory. Assigning a curve and calibrated delay, time scale, magnitude and provenance to each real treatment remains future work.
+Day 8 defines the simulation vocabulary and validation rules. Day 9 fixes the mathematical curve shapes and their invariants. Day 10 composes them into an absolute deterministic trajectory. Day 11 samples patient responses and produces percentile bands while preserving those rules. Assigning a curve and calibrated delay, time scale, magnitude, uncertainty and provenance to each real treatment remains future work.

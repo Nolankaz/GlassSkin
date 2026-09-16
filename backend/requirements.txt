@@ -14,3 +14,4 @@ pydantic==2.13.4          # request/response schemas (schemas.py)
 python-dotenv==1.2.2      # loads backend/.env into os.environ
 supabase==2.31.0          # Postgres/PostgREST client (database.py)
 openai==3.0.0             # Responses API client for treatment research
+numpy==2.5.3              # runtime array arithmetic for Day 11 Monte Carlo
