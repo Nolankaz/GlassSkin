@@ -1,0 +1,78 @@
+{
+  "sign_convention": "value_percent and quartiles_percent store positive percentage-improvement magnitudes; reported and spread_reported preserve source text verbatim. No GlassSkin-point outcomes are precomputed here.",
+  "comparisons": [
+    {
+      "comparison_id": "tretinoin_302_il_mean",
+      "treatment_id": "tretinoin",
+      "tier": "holdout_replicate",
+      "trial": "V01-121A-302 / NCT02535871",
+      "source_url": "https://clinicaltrials.gov/study/NCT02535871",
+      "target_metric": "inflammatory_acne",
+      "statistic": "mean",
+      "baseline_reported": "26.5 (SD 5.42)",
+      "baseline_points": 7.5,
+      "observations": [
+        {"t_days": 28, "reported": "−27.2%", "value_percent": 27.2, "spread_reported": "U(41.9), untyped", "spread_percent": null, "n": 413},
+        {"t_days": 56, "reported": "−42.9%", "value_percent": 42.9, "spread_reported": "U(44.0), untyped", "spread_percent": null, "n": 413},
+        {"t_days": 84, "reported": "−53.4%", "value_percent": 53.4, "spread_reported": "SD 45.44 percentage points", "spread_percent": 45.44, "n": 413}
+      ],
+      "caveats": "Weeks 4 and 8 use the FDA mean-change series; their U(...) parentheticals are untyped and cannot supply an SD or SE. Week 12 is a registry LS mean with a typed SD of percentage change. Ns are analysis-set Ns, not observed visit attendance. Same product and closely matched protocol as the fitted 301 trial, so this tests replication rather than cross-population generalisation."
+    },
+    {
+      "comparison_id": "tazarotene_302_il_mean",
+      "treatment_id": "tazarotene",
+      "tier": "holdout_replicate",
+      "trial": "V01-123A-302 / NCT03168334",
+      "source_url": "https://clinicaltrials.gov/study/NCT03168334",
+      "target_metric": "inflammatory_acne",
+      "statistic": "mean",
+      "baseline_reported": "28.0 (SD 7.3)",
+      "baseline_points": 7.5,
+      "observations": [
+        {"t_days": 28, "reported": "−32.31%", "value_percent": 32.31, "spread_reported": "SD 32.906 percentage points", "spread_percent": 32.906, "n": 397},
+        {"t_days": 56, "reported": "−50.38%", "value_percent": 50.38, "spread_reported": "SD 32.917 percentage points", "spread_percent": 32.917, "n": 397},
+        {"t_days": 84, "reported": "−59.50%", "value_percent": 59.50, "spread_reported": "SD 33.382 percentage points", "spread_percent": 33.382, "n": 397}
+      ],
+      "caveats": "Registry LS means and typed SDs describe percentage change; Ns are analysis-set Ns, not observed visit attendance. Same product and closely matched protocol as the fitted 301 trial, so this tests replication rather than cross-population generalisation."
+    },
+    {
+      "comparison_id": "clindamycin_label_il_mean",
+      "treatment_id": "clindamycin",
+      "tier": "partial",
+      "trial": "unnamed 12-week randomized evaluator-blinded vehicle-controlled study",
+      "source_url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=ea1d4a37-7da2-4228-8451-6367e1a62554",
+      "target_metric": "inflammatory_acne",
+      "statistic": "mean",
+      "baseline_reported": null,
+      "baseline_points": null,
+      "observations": [
+        {"t_days": 84, "reported": "51%", "value_percent": 51.0, "spread_reported": null, "spread_percent": null, "n": 162}
+      ],
+      "caveats": "This endpoint comes from a different study than the calibrated Shah et al. series, with an unnamed formulation and evaluator-blinded rather than open-label design. The observed baseline is unavailable, so a later comparison is interpretable only on the percentage scale and depends on an assumed evaluation baseline. The efficacy N is 162; the separate safety N must not be substituted."
+    },
+    {
+      "comparison_id": "benzoyl_peroxide_eos_il_quartiles",
+      "treatment_id": "benzoyl_peroxide",
+      "tier": "partial",
+      "trial": "Twelve-week, multicenter, placebo-controlled, randomized, double-blind, parallel-group, comparative phase II/III study of benzoyl peroxide gel in patients with acne vulgaris: A secondary publication",
+      "source_url": "https://onlinelibrary.wiley.com/doi/full/10.1111/1346-8138.13798",
+      "target_metric": "inflammatory_acne",
+      "statistic": "quartiles",
+      "baseline_reported": "18 (14–26)",
+      "baseline_points": 7.5,
+      "observations": [
+        {"t_days": null, "reported": "72.7% (46.2–87.5%)", "value_percent": 72.7, "spread_reported": null, "spread_percent": null, "n": 203, "quartiles_percent": {"p25": 46.2, "median": 72.7, "p75": 87.5}}
+      ],
+      "caveats": "This is the same trial used in calibration. End of study means week 12 or early discontinuation, so there is no single observed day and these quartiles do not belong to the exact week-12 row. It is not independent validation. The IQR is a partial plausibility check on the borrowed response spread / sigma, not a typed SD of percentage change or a Tier 1 spread verdict."
+    }
+  ],
+  "excluded": [
+    {"candidate": "Conventional-dose doxycycline 100 mg", "reason": "Different regimen from calibrated 20 mg twice daily."},
+    {"candidate": "ABSORICA isotretinoin", "reason": "Different nodular endpoint, weight-based dose, and 20-week horizon from calibrated 20 mg nightly."},
+    {"candidate": "Adapalene, azelaic acid, salicylic acid, spironolactone", "reason": "No calibrated v1 effects to evaluate."},
+    {"candidate": "Non-inflammatory and total lesion series", "reason": "No matching calibrated metric effect; aggregate non-inflammatory lesions cannot be split into blackheads and whiteheads."},
+    {"candidate": "Clindamycin and isotretinoin reported medians of visit counts", "reason": "Median endpoint count minus median baseline count is not guaranteed to equal median change."},
+    {"candidate": "Tretinoin and tazarotene 301 week-12 SDs as independent validation of spread", "reason": "Those SDs influenced sigma and are in-sample only."},
+    {"candidate": "Vehicle/placebo arms", "reason": "The model has no vehicle/placebo arm; these are Tier C context only."}
+  ]
+}
