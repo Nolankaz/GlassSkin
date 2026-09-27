@@ -23,7 +23,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from simulation.engine import simulate
-from simulation.models import PatientResponse, SimulationConfig, SkinState, TreatmentEffect, TreatmentParameters
+from simulation.models import FIXTURE_PROVENANCE, PatientResponse, SimulationConfig, SkinState, TreatmentEffect, TreatmentParameters
 from simulation.monte_carlo import simulate_many
 
 
@@ -65,9 +65,9 @@ def fixture_treatment():
         display_name="FIXTURE MONTE CARLO (NOT MEDICAL)",
         parameter_version="fixture",
         effects=[
-            TreatmentEffect(target_metric="inflammatory_acne", effect_kind="therapeutic", direction="decrease", delay_days=FIXTURE_ACNE_DELAY_DAYS, mean_magnitude=5.0, uncertainty=2.0, time_scale_days=35, time_curve="logistic"),
-            TreatmentEffect(target_metric="dryness", effect_kind="side_effect", direction="increase", delay_days=0, mean_magnitude=3.0, uncertainty=1.2, time_scale_days=18, time_curve="exponential"),
-            TreatmentEffect(target_metric="dryness", effect_kind="therapeutic", direction="decrease", delay_days=28, mean_magnitude=3.0, uncertainty=0.9, time_scale_days=42, time_curve="delayed_linear"),
+            TreatmentEffect(target_metric="inflammatory_acne", effect_kind="therapeutic", direction="decrease", delay_days=FIXTURE_ACNE_DELAY_DAYS, mean_magnitude=5.0, uncertainty=2.0, time_scale_days=35, time_curve="logistic", provenance=FIXTURE_PROVENANCE),
+            TreatmentEffect(target_metric="dryness", effect_kind="side_effect", direction="increase", delay_days=0, mean_magnitude=3.0, uncertainty=1.2, time_scale_days=18, time_curve="exponential", provenance=FIXTURE_PROVENANCE),
+            TreatmentEffect(target_metric="dryness", effect_kind="therapeutic", direction="decrease", delay_days=28, mean_magnitude=3.0, uncertainty=0.9, time_scale_days=42, time_curve="delayed_linear", provenance=FIXTURE_PROVENANCE),
         ],
     )
 

@@ -1,0 +1,24 @@
+{
+  "treatment_id": "tazarotene",
+  "display_name": "ARAZLO tazarotene 0.045% lotion",
+  "parameter_version": "v1",
+  "effects": [
+    {
+      "target_metric": "inflammatory_acne",
+      "effect_kind": "therapeutic",
+      "direction": "decrease",
+      "delay_days": 0,
+      "mean_magnitude": 4.631018453293426,
+      "uncertainty": 2.777552833318275,
+      "time_scale_days": 59.9470065303065,
+      "time_curve": "exponential",
+      "provenance": {
+        "kind": "published",
+        "source_url": "https://clinicaltrials.gov/study/NCT03168321",
+        "citation": "ARAZLO/IDP-123 0.045% lotion, V01-123A-301 / NCT03168321; FDA NDA 211882 review Table 19; registry percentage-change endpoints, weeks 4/8/12.",
+        "reported_figure": "Active IL LS-mean percentage change: week 4 −27.27% (SD 34.980), week 8 −45.30% (SD 34.351), week 12 −55.52% (SD 36.531). Baseline mean 28.5 lesions (SD 7.0), analysis N=402.",
+        "derivation": "ARAZLO 0.045% nightly, V01-123A-301/NCT03168321: observed IL mean 28.5 -> B_ref 7.5 (D3). Mean reductions ×7.5 /1.197053 (D4). Week-12 response SD 36.531 pp / mean 55.52% -> CV 0.657979, sigma 0.599771. Vehicle NIL sign conflict excluded. Step 5 fit: curve=exponential; delay_days=0; mean_magnitude=4.63101845; time_scale_days=59.9470065; RMSE=0.0203591937; max_abs_error=0.0268046593; n_points=3; DoF=1; g(t_max)=0.753708038; bound_flags=none; extrapolated_asymptote=True; candidate_failures=0. Fitted asymptote is extrapolated beyond observed data."
+      }
+    }
+  ]
+}

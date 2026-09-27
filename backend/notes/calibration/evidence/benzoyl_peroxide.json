@@ -1,0 +1,30 @@
+{
+  "treatment_id": "benzoyl_peroxide",
+  "display_name": "Benzoyl peroxide 2.5% aqueous gel",
+  "notes": "CORE. Japanese randomized vehicle-controlled trial, 2.5% aqueous gel nightly for 12 weeks after a two-week vehicle run-in. Active FAS N=203; observed visit Ns and week-specific spread are not reported. Exact week-12 median reduction is distinct from the discontinuation-inclusive end-of-study median and IQR. Vehicle and aggregate NIL/TL results remain in sources.md; NIL is not split into blackheads and whiteheads. Irritation and erythema are reported as incidence, not graded magnitude, so simulated side-effect burden will be underestimated.",
+  "effects": [
+    {
+      "target_metric": "inflammatory_acne",
+      "effect_kind": "therapeutic",
+      "direction": "decrease",
+      "reference_baseline_points": 7.5,
+      "reported_basis": "median",
+      "response_cv": null,
+      "response_sigma": 0.736530531,
+      "observations": [
+        {"t_days": 14, "reported": "36.4%", "target_points": 2.73},
+        {"t_days": 28, "reported": "48.1%", "target_points": 3.6075},
+        {"t_days": 42, "reported": "60.4%", "target_points": 4.53},
+        {"t_days": 84, "reported": "73.3%", "target_points": 5.4975}
+      ],
+      "delay_grid_days": [0, 7, 14],
+      "provenance": {
+        "kind": "published",
+        "source_url": "https://onlinelibrary.wiley.com/doi/full/10.1111/1346-8138.13798",
+        "citation": "Japanese benzoyl peroxide 2.5% gel RCT, English secondary publication, J Dermatol 2017; DOI 10.1111/1346-8138.13798; Results secondary efficacy endpoint 3, Tables 2–3.",
+        "reported_figure": "Active IL median percent reduction: week 2 36.4%, week 4 48.1%, week 6 60.4%, exact week 12 73.3%. Baseline median 18 lesions (IQR 14–26), FAS N=203; visit spread not reported.",
+        "derivation": "2.5% aqueous gel nightly, Japanese RCT 2017: observed IL median 18 -> B_ref 7.5 (D3); median reductions ×7.5 (D4), no mean correction. No usable between-subject response spread; pooled sigma 0.736531 borrowed from 3 direct effects. Step 5 fit residual pending."
+      }
+    }
+  ]
+}

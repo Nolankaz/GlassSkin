@@ -108,6 +108,49 @@ EffectDirection = Literal["increase", "decrease"]
 EffectKind = Literal["therapeutic", "side_effect"]
 
 
+ProvenanceKind = Literal["published", "fixture"]
+
+
+class Provenance(BaseModel):
+    """Record where one TreatmentEffect's values came from.
+
+    reported_figure keeps the source's wording and numbers; derivation explains
+    how those figures became the effect's model parameters.
+    """
+
+    model_config = {"extra": "forbid", "frozen": True}
+
+    kind: ProvenanceKind
+    source_url: str = Field(max_length=500)
+    citation: str = Field(min_length=1, max_length=300)
+    reported_figure: str = Field(min_length=1, max_length=300)
+    # Step 5 appends fit diagnostics to the preserved clinical conversion text.
+    derivation: str = Field(min_length=1, max_length=1000)
+
+    @model_validator(mode="after")
+    def validate_kind_fields(self):
+        if self.kind == "published":
+            if not self.source_url.startswith("https://"):
+                raise ValueError(f"published source_url must start with https://; got {self.source_url!r}")
+            for field in ("citation", "reported_figure", "derivation"):
+                value = getattr(self, field)
+                if not value.strip():
+                    raise ValueError(f"published {field} must not be whitespace-only; got {value!r}")
+        elif self.kind == "fixture":
+            if self.source_url != "":
+                raise ValueError(f"fixture source_url must be empty because fixtures have no published source; got {self.source_url!r}")
+            if "NOT MEDICAL" not in self.citation:
+                raise ValueError(f"fixture citation must contain 'NOT MEDICAL'; got {self.citation!r}")
+        return self
+
+
+# Legitimate provenance for non-medical test and development fixture values.
+FIXTURE_PROVENANCE = Provenance(kind="fixture", source_url="", citation="FIXTURE — NOT MEDICAL", reported_figure="none", derivation="arbitrary fixture value for tests and development plots")
+
+# The fitter reads the same limit when converting response sigma into points.
+MAX_EFFECT_UNCERTAINTY = 5.0
+
+
 class TreatmentEffect(BaseModel):
     """One treatment's influence on exactly one skin metric."""
 
@@ -129,7 +172,7 @@ class TreatmentEffect(BaseModel):
     # Spread in metric points, like mean_magnitude. Monte Carlo interprets
     # uncertainty / mean_magnitude as the log-scale standard deviation of the
     # response multiplier; 0 means every patient responds at the reference magnitude.
-    uncertainty: float = Field(ge=0, le=5)
+    uncertainty: float = Field(ge=0, le=MAX_EFFECT_UNCERTAINTY)
 
     # The curve's characteristic duration, measured from the end of the delay;
     # its exact meaning depends on the curve. For linear and delayed_linear it
@@ -143,6 +186,7 @@ class TreatmentEffect(BaseModel):
     time_scale_days: float = Field(gt=0, le=730)
 
     time_curve: TimeCurveType
+    provenance: Provenance
 
     @model_validator(mode="after")
     def validate_time_curve_delay(self):

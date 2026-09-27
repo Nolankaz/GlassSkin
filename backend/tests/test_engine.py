@@ -26,6 +26,7 @@ from simulation.engine import (
 )
 from simulation.models import (
     CURVES_WITHOUT_DELAY,
+    FIXTURE_PROVENANCE,
     SKIN_METRIC_NAMES,
     EffectDirection,
     EffectKind,
@@ -60,6 +61,7 @@ def fixture_effect(**overrides):
         uncertainty=0.0,
         time_scale_days=30,
         time_curve="linear",
+        provenance=FIXTURE_PROVENANCE,
     )
 
     kwargs.update(overrides)

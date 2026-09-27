@@ -24,3 +24,6 @@ plans/
 
 # vscode settings
 .vscode/
+
+# treatment research
+backend/notes/calibration/research/

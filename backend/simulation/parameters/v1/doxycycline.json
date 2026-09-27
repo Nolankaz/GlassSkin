@@ -1,0 +1,24 @@
+{
+  "treatment_id": "doxycycline",
+  "display_name": "Doxycycline hyclate 20 mg twice daily",
+  "parameter_version": "v1",
+  "effects": [
+    {
+      "target_metric": "inflammatory_acne",
+      "effect_kind": "therapeutic",
+      "direction": "decrease",
+      "delay_days": 0,
+      "mean_magnitude": 3.7759719010504313,
+      "uncertainty": 3.422819008786792,
+      "time_scale_days": 172.22027159359527,
+      "time_curve": "exponential",
+      "provenance": {
+        "kind": "published",
+        "source_url": "https://jamanetwork.com/journals/jamadermatology/fullarticle/479281",
+        "citation": "Skidmore et al., Effects of Subantimicrobial-Dose Doxycycline in the Treatment of Moderate Acne, Arch Dermatol 2003;139:459–464, Table 2 and efficacy text; DOI 10.1001/archderm.139.4.459.",
+        "reported_figure": "Active IL mean reduction: month 2 24%, month 4 36%; month 6 mean percent change −50.1%. Completer baseline 31.38 lesions; month-6 absolute change −15.71 lesions (SE 3.87), n=21.",
+        "derivation": "Periostat hyclate 20 mg BID, Skidmore 2003: observed IL mean 31.38 -> B_ref 7.5 (D3). Mean reductions ×7.5 /1.508095 (D4). Month-6 change SE 3.87×sqrt(21)/15.71 -> CV 1.128871, sigma 0.906474; fixed-baseline scaling preserves CV. Month-2/4 spread absent. Step 5 fit: curve=exponential; delay_days=0; mean_magnitude=3.7759719; time_scale_days=172.220272; RMSE=0.0809231451; max_abs_error=0.104498142; n_points=3; DoF=1; g(t_max)=0.648369063; bound_flags=none; extrapolated_asymptote=True; candidate_failures=0. Fitted asymptote is extrapolated beyond observed data."
+      }
+    }
+  ]
+}

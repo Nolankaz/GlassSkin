@@ -1,0 +1,29 @@
+{
+  "treatment_id": "isotretinoin",
+  "display_name": "Oral isotretinoin 20 mg capsules",
+  "notes": "USABLE WITH CAVEATS — conditional. De et al. 2025 randomized open-label comparison, 20 mg oral capsules nightly after meals for 12 weeks, 30 monotherapy participants, all completed. Small sample, short course, unknown capsule brand; comparator adds topical minocycline and its IL baseline differs between source Tables 1 and 2. Only the monotherapy inflammatory-lesion count series is used. This is not ABSORICA, weight-based dosing, or a nodular-only endpoint. Visit count SDs are not change SDs. No graded skin-side-effect trajectory is available, so simulated side-effect burden will be underestimated.",
+  "effects": [
+    {
+      "target_metric": "inflammatory_acne",
+      "effect_kind": "therapeutic",
+      "direction": "decrease",
+      "reference_baseline_points": 7.5,
+      "reported_basis": "mean",
+      "response_cv": null,
+      "response_sigma": 0.736530531,
+      "observations": [
+        {"t_days": 28, "reported": "22.33 lesions", "target_points": 1.504110},
+        {"t_days": 56, "reported": "15.67 lesions", "target_points": 2.760994},
+        {"t_days": 84, "reported": "9.87 lesions", "target_points": 3.855579}
+      ],
+      "delay_grid_days": [0, 7, 14],
+      "provenance": {
+        "kind": "published",
+        "source_url": "https://doi.org/10.5114/ada.2024.146870",
+        "citation": "De et al., oral isotretinoin alone versus oral plus topical minocycline, Adv Dermatol Allergol 2025;42:164–170, Table 2; DOI 10.5114/ada.2024.146870; CTRI/2023/04/052056.",
+        "reported_figure": "Monotherapy IL mean counts: baseline 30.30 (SD 8.12), week 4 22.33 (SD 10.55), week 8 15.67 (SD 12.45), week 12 9.87 (SD 12.2); n=30 throughout.",
+        "derivation": "20 mg oral nightly after meals, De 2025: observed IL mean 30.30 -> B_ref 7.5 (D3). Mean count reductions /30.30 ×7.5 /1.311588 (D4). No usable response spread: visit count SDs are not change SDs; pooled sigma 0.736531 borrowed from 3 direct effects. Step 5 fit residual pending."
+      }
+    }
+  ]
+}

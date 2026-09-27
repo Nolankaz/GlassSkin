@@ -40,6 +40,7 @@ Each effect stores:
 - the uncertainty in patient response
 - the curve's characteristic duration
 - the type of time curve used
+- the effect's provenance
 
 Therapeutic effects and side effects use the same model because both are changes to a skin metric.
 
@@ -328,7 +329,7 @@ z = 0
 → multiplier = 1
 ```
 
-for every `sigma`. The multiplier-1 deterministic responder is therefore the median/reference responder. Under this stochastic interpretation, the existing `mean_magnitude` field behaves as the magnitude for that median/reference responder. The field is retained for compatibility, but its calibration semantics must be handled carefully when real study values are introduced.
+for every `sigma`. The multiplier-1 deterministic responder is therefore the median/reference responder. Under this stochastic interpretation, the existing `mean_magnitude` field behaves as the magnitude for that median/reference responder. Day 12 converts reported means to median-referenced targets before fitting, as described under Calibration.
 
 ### Shared Responses by Effect Kind
 
@@ -466,6 +467,66 @@ The Step 6 fan chart displays p10–p90 as the middle 80% of simulated patient o
 
 ---
 
+## Calibration
+
+Day 12 connects reviewed study observations to the existing simulation engine:
+
+```text
+notes/calibration/sources.md                 hand-written evidence ledger
+    → notes/calibration/evidence/*.json      hand-written converted targets
+    → notes/fit_treatment_parameters.py      development-only fitter
+    → simulation/parameters/v1/*.json        generated runtime parameters
+    → simulation.parameters loader
+    → real simulation.engine.simulate
+```
+
+The fitter also generates `notes/calibration/fits/*.png` and `notes/calibration/fit_report.md`. Parameter JSON is reproducible from the evidence and fitting code in this repository. The six current treatment files each contain a published effect on `inflammatory_acne`; this is calibration to selected observations, not clinical validation of the simulator.
+
+### Provenance and evidence selection
+
+Every `TreatmentEffect` requires `Provenance`: `kind` distinguishes `published` from `fixture`; `source_url` locates the source; `citation` identifies the study and relevant location; `reported_figure` records the source values; and `derivation` explains conversion and fitting. `FIXTURE_PROVENANCE` is explicitly **NOT MEDICAL**. Shipped effects in `simulation/parameters/` require published provenance, and the parameter loader rejects fixture-kind effects.
+
+This requirement makes each coefficient carry a provenance claim. It does not establish that a paper is correct or that a citation supports its interpretation. The evidence ledger and human review remain necessary.
+
+Calibration uses **active-arm change from baseline**, not active-minus-vehicle. The product question is “what happens when someone uses this treatment?” Vehicle and other control observations remain in the ledger for later validation and interpretation. This is a model decision, not a universal clinical rule; the fitted effect may include changes that also occurred in a control arm.
+
+Adverse-event incidence is not a severity magnitude: “20% experienced dryness” does not mean “dryness +2 points.” Only a usable numerical magnitude-over-time signal can become a calibrated skin-metric effect. The selected evidence has no complete graded side-effect trajectory, so current simulations may understate treatment burden.
+
+### Response variability and median reference
+
+For usable between-subject spread of **change** on the matching endpoint, Day 12 derives the coefficient of variation and log-scale spread as:
+
+```text
+CV = SD / mean
+sigma = sqrt(ln(1 + CV^2))
+uncertainty = sigma * mean_magnitude
+```
+
+Day 11 recovers `sigma = uncertainty / mean_magnitude` for its median-centered multiplicative response. Because the deterministic multiplier-1 response represents the median, a reported mean is converted **after deriving sigma**:
+
+```text
+median_referenced_target = reported_mean / exp(sigma^2 / 2)
+```
+
+A reported median receives no mean-to-median correction. When usable change-spread data are unavailable, sigma may be borrowed from the pooled directly-derived effects. The derivation must flag that fallback; it must not suggest the borrowed spread came from the same study. Baseline or endpoint count SD alone is not an SD of change.
+
+### Curve fitting and residuals
+
+The fitter enumerates legal `time_curve` and `delay_days` candidates, then uses SciPy least-squares fitting for the continuous `mean_magnitude` and `time_scale_days` values. It evaluates the actual `simulation.curves.progress` function and checks the fitted magnitude against the **bounded** closed-form least-squares optimum. An unconstrained optimum above the magnitude ceiling is recorded separately; a valid ceiling fit remains in RMSE ranking. The separate `TreatmentEffect` uncertainty limit can make a candidate ineligible for the final parameter. SciPy and Matplotlib are development dependencies, not runtime dependencies.
+
+For each successful candidate, the fitter records RMSE, maximum absolute residual, and flags for magnitude or time-scale bound hits, nonpositive degrees of freedom, and asymptotes extrapolated beyond the observed duration. It records failed candidates separately. Selection uses deterministic RMSE tie-breaking. The fitter constructs and validates real `TreatmentEffect` and `TreatmentParameters` objects before writing JSON. The fit report records the selected curves, diagnostics, and any candidates excluded by model constraints.
+
+Low RMSE means a curve lies close to the **converted** evidence points. It does not prove clinical validity or strong evidence quality. When degrees of freedom are nonpositive, residual quality is not informative in the usual sense. The parameter tests load generated JSON, run the real engine at each recorded observation time with a reference response, compare against the evidence targets using recorded residuals, and reject clamped target states. This verifies reproduction of the calibration targets, not external clinical accuracy.
+
+### Known calibration limitations
+
+- Observed response spread contains measurement error, natural fluctuation, adherence differences, vehicle response, and other study variation as well as biological variability. The derived or borrowed sigma may overestimate true between-patient biological response variability.
+- Some fitted asymptotes extend beyond observed study duration where `g(t_max)` is low; the fit report flags these extrapolations.
+- Parameters calibrated at reference baselines become absolute point changes in the engine. Applying them across different starting severities can be optimistic for mild states and conservative for severe states.
+- Excluded or unmodeled side effects make the simulated treatment burden optimistic.
+
+---
+
 ## Core Invariants
 
 The simulation obeys these model, curve, deterministic-engine, and Monte Carlo rules:
@@ -488,11 +549,15 @@ The simulation obeys these model, curve, deterministic-engine, and Monte Carlo r
 - Reordering treatment effects does not change the trajectory.
 - Deterministic simulations are exactly repeatable for identical inputs.
 - Simulation inputs are not mutated.
-- The simulation package must remain a pure boundary with no FastAPI, Supabase, OpenAI, network, environment, or clock dependencies.
+- `simulation/` has no FastAPI, Supabase, OpenAI, network, environment-variable, clock, or database dependencies. Its only filesystem access is `simulation/parameters/` reading its own committed, read-only packaged data through `importlib.resources`, with no caller-supplied filesystem path. This preserves determinism and avoids hidden external state.
 - Deterministic simulation modules have no randomness dependencies.
 - Monte Carlo randomness comes only from a local seeded NumPy generator.
 - Monte Carlo public results contain all metrics and only percentile bands, not raw trials.
 - Naive and vectorised trial paths agree within the documented numerical tolerance.
+- Every `TreatmentEffect` carries `Provenance`; every shipped effect in `simulation/parameters/` has published provenance, never fixture provenance.
+- A parameter filename stem equals its `treatment_id`; `parameter_version` equals its containing version directory; IDs are unique within each version.
+- Parameter version syntax is validated before filesystem access, and loading is deterministic and sorted by `treatment_id`.
+- Calibrated parameters reproduce recorded source targets through the real engine within their recorded residuals.
 
 These rules are enforced through Pydantic validation and automated tests.
 
@@ -519,15 +584,38 @@ This keeps the simulation engine independent from the database structure.
 
 ---
 
-## Scale Mapping — Not Yet Decided
+## Scale Mapping
 
-The skin metrics use a `0–10` scale, while medical studies may report outcomes using measurements such as percentage lesion reduction.
+The skin metrics use a `0–10` scale, while studies may report global grades or lesion counts. Day 12 uses the following GlassSkin calibration conventions, **not universal clinical equivalences**.
 
-The method for converting clinical evidence into the simulation's `0–10` scale has not yet been decided.
+For a usable observed global grade on a `0–4` scale:
 
-This will be defined during treatment parameter calibration.
+| Global grade | GlassSkin points |
+|---:|---:|
+| 0 | 0 |
+| 1 | 2.5 |
+| 2 | 5 |
+| 3 | 7.5 |
+| 4 | 10 |
 
-It is one of the most important modeling assumptions in the project and should be applied consistently across all treatments.
+For an observed lesion-count baseline, the fixed anchors are:
+
+| Band | Inflammatory lesions | Comedones | GlassSkin points |
+|---|---:|---:|---:|
+| Clear | 0 | 0 | 0 |
+| Mild | 1–14 | 1–19 | 5 |
+| Moderate | 15–50 | 20–100 | 7.5 |
+| Severe | >50 | >100 | 10 |
+
+Eligibility ranges are not observed baselines. The conversion rule has three branches:
+
+1. If the source reports an absolute change on a `0–4` global grade, `delta_points = delta_grade * 2.5`.
+2. Else if the source reports a percentage change in lesion count, `delta_points = fraction_change * B_ref`, where `B_ref` is that trial's mapped reference baseline.
+3. Otherwise, record the endpoint but do not use it as a fitted target.
+
+### Absolute versus proportional effects
+
+The engine applies an absolute point effect calibrated at a reference baseline. A mildly affected user can therefore receive the same modeled point change as a more severely affected user. This may be over-optimistic for mild starting states and conservative for severe starting states. It is a known limitation to examine in Day 13.
 
 ---
 
@@ -549,26 +637,24 @@ does not justify assuming:
 mean_magnitude = 3.0
 ```
 
-Every real numerical treatment parameter should eventually have a documented source.
+Every numerical efficacy or side-effect coefficient entering the simulator needs a traceable source and derivation.
 
-Until real parameters are added, any values used for development or testing should be clearly labeled as fixture or non-medical values.
+Development and test treatments explicitly use `FIXTURE_PROVENANCE` / **NOT MEDICAL**. Shipped calibrated effects require published provenance, and the runtime loader refuses fixture provenance in versioned parameter data.
 
 The values in `notes/plot_curves.py` are arbitrary mathematical illustrations marked **FIXTURE** and **NOT MEDICAL**. They are not treatment parameters or medical claims.
 
-All treatments used in `tests/test_engine.py` and `notes/plot_trajectory.py` are arbitrary fixtures marked NOT MEDICAL. `simulation/` contains no treatment parameters of any kind.
+The treatments used in `tests/test_engine.py` and `notes/plot_trajectory.py` are arbitrary fixtures marked NOT MEDICAL. The versioned `simulation/parameters/v1/` JSON files are the separate calibrated runtime data source.
 
 ---
 
 ## Deliberately Not Decided Yet
 
-Days 10 and 11 fixed deterministic composition, Monte Carlo patient-response sampling, percentile aggregation and vectorised execution. The following parts remain intentionally unresolved for later work:
+Days 10–12 fixed deterministic composition, Monte Carlo response sampling, and calibration for six treatments. The following parts remain intentionally unresolved for later work:
 
-- calibrated real treatment parameters and their provenance
-- exact curve choice for each treatment
+- curve choice and calibration for newly added treatments; curves for the currently calibrated six are fitted
 - treatment interactions
 - adherence
 - treatment discontinuation and rebound
-- mapping clinical study outcomes onto the `0–10` scale
 - clinical validation
 
-Day 8 defines the simulation vocabulary and validation rules. Day 9 fixes the mathematical curve shapes and their invariants. Day 10 composes them into an absolute deterministic trajectory. Day 11 samples patient responses and produces percentile bands while preserving those rules. Assigning a curve and calibrated delay, time scale, magnitude, uncertainty and provenance to each real treatment remains future work.
+Day 8 defines the simulation vocabulary and validation rules. Day 9 fixes the mathematical curve shapes and their invariants. Day 10 composes them into an absolute deterministic trajectory. Day 11 samples patient responses and produces percentile bands while preserving those rules. Day 12 records sourced published treatment evidence, fits calibrated parameters with provenance, loads versioned parameter data, and tests reproduction of the recorded targets through the real engine.

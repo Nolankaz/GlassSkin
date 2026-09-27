@@ -19,6 +19,7 @@ import simulation.engine as engine_module
 import simulation.models as models_module
 from simulation.engine import MULTIPLIER_FIELD_BY_KIND, build_time_grid, simulate
 from simulation.models import (
+    FIXTURE_PROVENANCE,
     METRIC_MAX,
     METRIC_MIN,
     SKIN_METRIC_NAMES,
@@ -69,6 +70,7 @@ def fixture_effect(**overrides):
         uncertainty=1.0,
         time_scale_days=30.0,
         time_curve="linear",
+        provenance=FIXTURE_PROVENANCE,
     )
     kwargs.update(overrides)
     return TreatmentEffect(**kwargs)

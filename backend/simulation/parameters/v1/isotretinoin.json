@@ -1,0 +1,24 @@
+{
+  "treatment_id": "isotretinoin",
+  "display_name": "Oral isotretinoin 20 mg capsules",
+  "parameter_version": "v1",
+  "effects": [
+    {
+      "target_metric": "inflammatory_acne",
+      "effect_kind": "therapeutic",
+      "direction": "decrease",
+      "delay_days": 7,
+      "mean_magnitude": 6.149709019377253,
+      "uncertainty": 4.529448449537417,
+      "time_scale_days": 79.1568207423528,
+      "time_curve": "exponential",
+      "provenance": {
+        "kind": "published",
+        "source_url": "https://doi.org/10.5114/ada.2024.146870",
+        "citation": "De et al., oral isotretinoin alone versus oral plus topical minocycline, Adv Dermatol Allergol 2025;42:164–170, Table 2; DOI 10.5114/ada.2024.146870; CTRI/2023/04/052056.",
+        "reported_figure": "Monotherapy IL mean counts: baseline 30.30 (SD 8.12), week 4 22.33 (SD 10.55), week 8 15.67 (SD 12.45), week 12 9.87 (SD 12.2); n=30 throughout.",
+        "derivation": "20 mg oral nightly after meals, De 2025: observed IL mean 30.30 -> B_ref 7.5 (D3). Mean count reductions /30.30 ×7.5 /1.311588 (D4). No usable response spread: visit count SDs are not change SDs; pooled sigma 0.736531 borrowed from 3 direct effects. Step 5 fit: curve=exponential; delay_days=7; mean_magnitude=6.14970902; time_scale_days=79.1568207; RMSE=0.0631687956; max_abs_error=0.0772840581; n_points=3; DoF=1; g(t_max)=0.621958976; bound_flags=none; extrapolated_asymptote=True; candidate_failures=0. Fitted asymptote is extrapolated beyond observed data."
+      }
+    }
+  ]
+}

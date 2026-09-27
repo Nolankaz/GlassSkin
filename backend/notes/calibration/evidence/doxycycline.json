@@ -1,0 +1,29 @@
+{
+  "treatment_id": "doxycycline",
+  "display_name": "Doxycycline hyclate 20 mg twice daily",
+  "notes": "CORE. Skidmore 2003 six-month placebo RCT, completer analysis (21 active, 19 placebo). One study month is represented as 30 days: months 2, 4, 6 become days 60, 120, 180. Only the active inflammatory-lesion series is fitted; placebo and aggregate comedones remain in sources.md. No graded skin-side-effect trajectory was reported, so simulated side-effect burden will be underestimated. This 20 mg BID evidence does not apply to 100 mg/day.",
+  "effects": [
+    {
+      "target_metric": "inflammatory_acne",
+      "effect_kind": "therapeutic",
+      "direction": "decrease",
+      "reference_baseline_points": 7.5,
+      "reported_basis": "mean",
+      "response_cv": 1.128871288,
+      "response_sigma": 0.906473644,
+      "observations": [
+        {"t_days": 60, "reported": "24% reduction", "target_points": 1.193559},
+        {"t_days": 120, "reported": "36% reduction", "target_points": 1.790338},
+        {"t_days": 180, "reported": "−50.1%", "target_points": 2.491554}
+      ],
+      "delay_grid_days": [0, 7, 14],
+      "provenance": {
+        "kind": "published",
+        "source_url": "https://jamanetwork.com/journals/jamadermatology/fullarticle/479281",
+        "citation": "Skidmore et al., Effects of Subantimicrobial-Dose Doxycycline in the Treatment of Moderate Acne, Arch Dermatol 2003;139:459–464, Table 2 and efficacy text; DOI 10.1001/archderm.139.4.459.",
+        "reported_figure": "Active IL mean reduction: month 2 24%, month 4 36%; month 6 mean percent change −50.1%. Completer baseline 31.38 lesions; month-6 absolute change −15.71 lesions (SE 3.87), n=21.",
+        "derivation": "Periostat hyclate 20 mg BID, Skidmore 2003: observed IL mean 31.38 -> B_ref 7.5 (D3). Mean reductions ×7.5 /1.508095 (D4). Month-6 change SE 3.87×sqrt(21)/15.71 -> CV 1.128871, sigma 0.906474; fixed-baseline scaling preserves CV. Month-2/4 spread absent. Step 5 fit residual pending."
+      }
+    }
+  ]
+}

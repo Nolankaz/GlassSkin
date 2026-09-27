@@ -1,0 +1,29 @@
+{
+  "treatment_id": "tazarotene",
+  "display_name": "ARAZLO tazarotene 0.045% lotion",
+  "notes": "CORE. V01-123A-301 / NCT03168321 is the primary 12-week randomized vehicle-controlled dataset; V01-123A-302 / NCT03168334 is independent corroboration, not pooled fitter input. The registry prints +41.47 for 301 vehicle week-12 aggregate NIL while FDA Table 22 and the publication report a 41.5% reduction; this conflict does not affect the selected active IL series and is not silently repaired. Registry SDs describe percentage change, not between-arm differences. Aggregate NIL cannot be split into blackheads and whiteheads. Label dryness/irritation rates are incidence, not symptom magnitude; excluding side effects understates simulated burden. No transfer to cream or gel formulations.",
+  "effects": [
+    {
+      "target_metric": "inflammatory_acne",
+      "effect_kind": "therapeutic",
+      "direction": "decrease",
+      "reference_baseline_points": 7.5,
+      "reported_basis": "mean",
+      "response_cv": 0.657979107,
+      "response_sigma": 0.599771489,
+      "observations": [
+        {"t_days": 28, "reported": "−27.27%", "target_points": 1.708571},
+        {"t_days": 56, "reported": "−45.30%", "target_points": 2.838220},
+        {"t_days": 84, "reported": "−55.52%", "target_points": 3.478542}
+      ],
+      "delay_grid_days": [0, 7, 14],
+      "provenance": {
+        "kind": "published",
+        "source_url": "https://clinicaltrials.gov/study/NCT03168321",
+        "citation": "ARAZLO/IDP-123 0.045% lotion, V01-123A-301 / NCT03168321; FDA NDA 211882 review Table 19; registry percentage-change endpoints, weeks 4/8/12.",
+        "reported_figure": "Active IL LS-mean percentage change: week 4 −27.27% (SD 34.980), week 8 −45.30% (SD 34.351), week 12 −55.52% (SD 36.531). Baseline mean 28.5 lesions (SD 7.0), analysis N=402.",
+        "derivation": "ARAZLO 0.045% nightly, V01-123A-301/NCT03168321: observed IL mean 28.5 -> B_ref 7.5 (D3). Mean reductions ×7.5 /1.197053 (D4). Week-12 response SD 36.531 pp / mean 55.52% -> CV 0.657979, sigma 0.599771. Vehicle NIL sign conflict excluded. Step 5 fit residual pending."
+      }
+    }
+  ]
+}

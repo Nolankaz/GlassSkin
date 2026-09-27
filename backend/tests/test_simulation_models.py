@@ -9,10 +9,12 @@ from pydantic import ValidationError
 from schemas import SkinProfileRequest
 from simulation.models import (
     CURVES_WITHOUT_DELAY,
+    FIXTURE_PROVENANCE,
     SKIN_METRIC_NAMES,
     MonteCarloResult,
     PatientResponse,
     PercentileBand,
+    Provenance,
     SimulationConfig,
     SkinState,
     TimeCurveType,
@@ -40,8 +42,15 @@ def valid_effect(**overrides):
         uncertainty=0.8,
         time_scale_days=90.0,
         time_curve="logistic",
+        provenance=FIXTURE_PROVENANCE,
     )
 
+    kwargs.update(overrides)
+    return kwargs
+
+
+def valid_provenance(**overrides):
+    kwargs = dict(kind="published", source_url="https://example.org/study", citation="Example citation", reported_figure="Example reported value", derivation="Example conversion for test")
     kwargs.update(overrides)
     return kwargs
 
@@ -142,7 +151,81 @@ def test_skin_state_json_round_trips():
     assert (SkinState.model_validate_json(state.model_dump_json()) == state)
 
 
+# --- Provenance -------------------------------------------------------------
+
+def test_published_provenance_constructs():
+    provenance = Provenance(**valid_provenance())
+
+    assert provenance.kind == "published"
+    assert provenance.source_url == "https://example.org/study"
+
+
+def test_fixture_provenance_constructs():
+    provenance = Provenance(kind="fixture", source_url="", citation="Test fixture — NOT MEDICAL", reported_figure="none", derivation="arbitrary test value")
+
+    assert provenance.kind == "fixture"
+
+
+def test_shared_fixture_provenance_is_marked_non_medical():
+    assert FIXTURE_PROVENANCE.kind == "fixture"
+    assert "NOT MEDICAL" in FIXTURE_PROVENANCE.citation
+
+
+@pytest.mark.parametrize("source_url", ["http://example.org/study", "", "ftp://example.org/study"])
+def test_published_provenance_requires_https_source_url(source_url):
+    with pytest.raises(ValidationError, match="source_url"):
+        Provenance(**valid_provenance(source_url=source_url))
+
+
+@pytest.mark.parametrize("field", ["citation", "reported_figure", "derivation"])
+def test_published_provenance_rejects_whitespace_only_text(field):
+    with pytest.raises(ValidationError, match=field):
+        Provenance(**valid_provenance(**{field: "   "}))
+
+
+def test_fixture_provenance_rejects_nonempty_source_url():
+    with pytest.raises(ValidationError, match="source_url"):
+        Provenance(**valid_provenance(kind="fixture", source_url="https://example.org/study", citation="FIXTURE — NOT MEDICAL"))
+
+
+def test_fixture_provenance_requires_not_medical_citation():
+    with pytest.raises(ValidationError, match="citation"):
+        Provenance(**valid_provenance(kind="fixture", source_url="", citation="Test fixture"))
+
+
+def test_provenance_rejects_unknown_kind():
+    with pytest.raises(ValidationError, match="kind"):
+        Provenance(**valid_provenance(kind="unknown"))
+
+
+def test_provenance_rejects_extra_field():
+    with pytest.raises(ValidationError, match="unexpected"):
+        Provenance(**valid_provenance(unexpected="value"))
+
+
+def test_shared_fixture_provenance_is_frozen():
+    with pytest.raises(ValidationError, match="frozen"):
+        FIXTURE_PROVENANCE.citation = "changed"
+
+
 # --- TreatmentEffect --------------------------------------------------------
+
+def test_effect_requires_provenance():
+    kwargs = valid_effect()
+    del kwargs["provenance"]
+
+    with pytest.raises(ValidationError, match="provenance"):
+        TreatmentEffect(**kwargs)
+
+
+def test_effect_json_round_trip_preserves_provenance():
+    provenance = Provenance(**valid_provenance())
+    effect = TreatmentEffect(**valid_effect(provenance=provenance))
+
+    restored = TreatmentEffect.model_validate_json(effect.model_dump_json())
+    assert restored == effect
+    assert restored.provenance == provenance
+
 
 def test_effect_rejects_misspelled_metric():
     with pytest.raises(ValidationError):
@@ -209,7 +292,7 @@ def test_every_declared_curve_is_constructible(curve):
 
     assert (
         TreatmentEffect(
-            **valid_effect(time_curve=curve, delay_days=0 if curve in CURVES_WITHOUT_DELAY else 14)
+            **valid_effect(time_curve=curve, delay_days=0 if curve in CURVES_WITHOUT_DELAY else 14, provenance=FIXTURE_PROVENANCE)
         ).time_curve
         == curve
     )
@@ -255,6 +338,7 @@ def test_treatment_supports_therapeutic_and_side_effects_together():
                     delay_days=3,
                     mean_magnitude=1.5,
                     time_curve="exponential",
+                    provenance=FIXTURE_PROVENANCE,
                 )
             ),
         ],

@@ -24,7 +24,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from simulation.engine import simulate
-from simulation.models import SKIN_METRIC_NAMES, PatientResponse, SimulationConfig, SkinState, TreatmentEffect, TreatmentParameters
+from simulation.models import FIXTURE_PROVENANCE, SKIN_METRIC_NAMES, PatientResponse, SimulationConfig, SkinState, TreatmentEffect, TreatmentParameters
 
 
 # FIXTURE VALUES ONLY — NOT MEDICAL
@@ -70,6 +70,7 @@ def fixture_treatment():
                 uncertainty=0.0,
                 time_scale_days=35,
                 time_curve="logistic",
+                provenance=FIXTURE_PROVENANCE,
             ),
             TreatmentEffect(
                 target_metric="dryness",
@@ -80,6 +81,7 @@ def fixture_treatment():
                 uncertainty=0.0,
                 time_scale_days=18,
                 time_curve="exponential",
+                provenance=FIXTURE_PROVENANCE,
             ),
             TreatmentEffect(
                 target_metric="dryness",
@@ -90,6 +92,7 @@ def fixture_treatment():
                 uncertainty=0.0,
                 time_scale_days=42,
                 time_curve="delayed_linear",
+                provenance=FIXTURE_PROVENANCE,
             ),
         ],
     )

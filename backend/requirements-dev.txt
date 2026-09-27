@@ -6,3 +6,4 @@ pytest==9.1.1
 # notes/. NumPy is now a runtime dependency via requirements.txt because Day 11
 # Monte Carlo uses array arithmetic.
 matplotlib==3.11.2 # renders development-only plots under notes/
+scipy==1.18.1     # development-only curve fitting in notes/fit_treatment_parameters.py

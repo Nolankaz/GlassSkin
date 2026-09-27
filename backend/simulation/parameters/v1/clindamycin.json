@@ -1,0 +1,24 @@
+{
+  "treatment_id": "clindamycin",
+  "display_name": "Clindamycin phosphate 1% gel",
+  "parameter_version": "v1",
+  "effects": [
+    {
+      "target_metric": "inflammatory_acne",
+      "effect_kind": "therapeutic",
+      "direction": "decrease",
+      "delay_days": 14,
+      "mean_magnitude": 2.580818377791796,
+      "uncertainty": 1.90085153020955,
+      "time_scale_days": 81.57280162254735,
+      "time_curve": "delayed_linear",
+      "provenance": {
+        "kind": "published",
+        "source_url": "https://doi.org/10.3390/antibiotics12091455",
+        "citation": "Shah et al., topical minocycline 4% versus clindamycin phosphate 1% gel, Antibiotics 2023;12:1455, Table 2; DOI 10.3390/antibiotics12091455; PMID 37760751.",
+        "reported_figure": "Active IL mean counts: baseline 4.32 (SD 3.89), week 3 4.48 (SD 3.59), week 6 3.36 (SD 2.96), week 9 2.71 (SD 2.61), week 12 1.69 (SD 1.84); visit n=50/50/50/49/45.",
+        "derivation": "1% gel nightly, Shah 2023: observed IL mean 4.32 -> B_ref 5 (D3). Mean count reductions /4.32 ×5 /1.311588 (D4). No usable response spread: count SDs are not change SDs; pooled sigma 0.736531 borrowed from 3 direct effects. Week 3 worsened. Step 5 fit: curve=delayed_linear; delay_days=14; mean_magnitude=2.58081838; time_scale_days=81.5728016; RMSE=0.0992444031; max_abs_error=0.129532861; n_points=3; DoF=1; g(t_max)=0.858129163; bound_flags=none; extrapolated_asymptote=False; candidate_failures=0."
+      }
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "treatment_id": "tretinoin",
+  "display_name": "ALTRENO tretinoin 0.05% lotion",
+  "parameter_version": "v1",
+  "effects": [
+    {
+      "target_metric": "inflammatory_acne",
+      "effect_kind": "therapeutic",
+      "direction": "decrease",
+      "delay_days": 0,
+      "mean_magnitude": 3.4970768384686495,
+      "uncertainty": 2.4596566111878397,
+      "time_scale_days": 47.2220927174575,
+      "time_curve": "exponential",
+      "provenance": {
+        "kind": "published",
+        "source_url": "https://clinicaltrials.gov/study/NCT02491060",
+        "citation": "ALTRENO/IDP-121 0.05% lotion, V01-121A-301 / NCT02491060; FDA NDA 209353 review Tables 30, 35; registry week-12 result; DailyMed ALTRENO Trial 1.",
+        "reported_figure": "Active IL mean percent change: week 4 −28.5%, week 8 −38.8%, week 12 LS mean −50.9% (SD 40.72 percentage points). Baseline mean 26.1 lesions (SD 5.56), analysis N=406.",
+        "derivation": "ALTRENO 0.05% daily, V01-121A-301/NCT02491060: observed IL mean 26.1 -> B_ref 7.5 (D3). Mean reductions ×7.5 /1.280625 (D4). Week-12 SD 40.72 pp / mean 50.9% -> CV 0.8, sigma 0.703346; intermediate U() excluded. Step 5 fit: curve=exponential; delay_days=0; mean_magnitude=3.49707684; time_scale_days=47.2220927; RMSE=0.116910735; max_abs_error=0.156477441; n_points=3; DoF=1; g(t_max)=0.831164162; bound_flags=none; extrapolated_asymptote=False; candidate_failures=0."
+      }
+    }
+  ]
+}

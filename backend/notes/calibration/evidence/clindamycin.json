@@ -1,0 +1,29 @@
+{
+  "treatment_id": "clindamycin",
+  "display_name": "Clindamycin phosphate 1% gel",
+  "notes": "USABLE WITH CAVEATS — conditional. Shah et al. 2023 randomized open-label comparison, clindamycin phosphate 1% gel nightly for 12 weeks; small study, mild baseline lesion burden, attrition to 45 active completers, unspecified brand and vehicle, active minocycline comparator rather than vehicle. Week-3 active mean IL count 4.48 exceeds observed baseline 4.32, so it is a worsening observation and cannot enter a positive-magnitude decrease effect; its raw value remains in sources.md. The fitter uses only weeks 6, 9, 12. The endpoint-only regulatory gel study is separate. No graded skin-side-effect trajectory is available, so simulated side-effect burden will be underestimated.",
+  "effects": [
+    {
+      "target_metric": "inflammatory_acne",
+      "effect_kind": "therapeutic",
+      "direction": "decrease",
+      "reference_baseline_points": 5.0,
+      "reported_basis": "mean",
+      "response_cv": null,
+      "response_sigma": 0.736530531,
+      "observations": [
+        {"t_days": 42, "reported": "3.36 lesions", "target_points": 0.847149},
+        {"t_days": 63, "reported": "2.71 lesions", "target_points": 1.420740},
+        {"t_days": 84, "reported": "1.69 lesions", "target_points": 2.320837}
+      ],
+      "delay_grid_days": [0, 7, 14],
+      "provenance": {
+        "kind": "published",
+        "source_url": "https://doi.org/10.3390/antibiotics12091455",
+        "citation": "Shah et al., topical minocycline 4% versus clindamycin phosphate 1% gel, Antibiotics 2023;12:1455, Table 2; DOI 10.3390/antibiotics12091455; PMID 37760751.",
+        "reported_figure": "Active IL mean counts: baseline 4.32 (SD 3.89), week 3 4.48 (SD 3.59), week 6 3.36 (SD 2.96), week 9 2.71 (SD 2.61), week 12 1.69 (SD 1.84); visit n=50/50/50/49/45.",
+        "derivation": "1% gel nightly, Shah 2023: observed IL mean 4.32 -> B_ref 5 (D3). Mean count reductions /4.32 ×5 /1.311588 (D4). No usable response spread: count SDs are not change SDs; pooled sigma 0.736531 borrowed from 3 direct effects. Week 3 worsened. Step 5 fit residual pending."
+      }
+    }
+  ]
+}

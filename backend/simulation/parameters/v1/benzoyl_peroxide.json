@@ -1,0 +1,24 @@
+{
+  "treatment_id": "benzoyl_peroxide",
+  "display_name": "Benzoyl peroxide 2.5% aqueous gel",
+  "parameter_version": "v1",
+  "effects": [
+    {
+      "target_metric": "inflammatory_acne",
+      "effect_kind": "therapeutic",
+      "direction": "decrease",
+      "delay_days": 0,
+      "mean_magnitude": 5.58829524969575,
+      "uncertainty": 4.115950067643189,
+      "time_scale_days": 24.271282965759983,
+      "time_curve": "exponential",
+      "provenance": {
+        "kind": "published",
+        "source_url": "https://onlinelibrary.wiley.com/doi/full/10.1111/1346-8138.13798",
+        "citation": "Japanese benzoyl peroxide 2.5% gel RCT, English secondary publication, J Dermatol 2017; DOI 10.1111/1346-8138.13798; Results secondary efficacy endpoint 3, Tables 2–3.",
+        "reported_figure": "Active IL median percent reduction: week 2 36.4%, week 4 48.1%, week 6 60.4%, exact week 12 73.3%. Baseline median 18 lesions (IQR 14–26), FAS N=203; visit spread not reported.",
+        "derivation": "2.5% aqueous gel nightly, Japanese RCT 2017: observed IL median 18 -> B_ref 7.5 (D3); median reductions ×7.5 (D4), no mean correction. No usable between-subject response spread; pooled sigma 0.736531 borrowed from 3 direct effects. Step 5 fit: curve=exponential; delay_days=0; mean_magnitude=5.58829525; time_scale_days=24.271283; RMSE=0.185693339; max_abs_error=0.280568678; n_points=4; DoF=2; g(t_max)=0.968597887; bound_flags=none; extrapolated_asymptote=False; candidate_failures=0."
+      }
+    }
+  ]
+}
