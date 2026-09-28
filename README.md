@@ -223,6 +223,8 @@ Base URL `http://127.0.0.1:8000`. No authentication.
 | `PATCH` | `/profiles/{id}`                              | Partial update (`SkinProfileUpdate`, `exclude_unset`). Also deletes that profile's cached research. `404` if missing. |
 | `GET`   | `/profiles/{id}/treatment-options/saved`      | Cached research only. `result` is `null` on a miss — never calls OpenAI.     |
 | `GET`   | `/profiles/{id}/treatment-options`            | Returns cached research, or generates and caches it. `404` unknown profile, `502` if research fails. |
+| `GET`   | `/simulation/treatments`                      | Lists treatments available to the calibrated simulator.                    |
+| `GET`   | `/profiles/{profile_id}/simulations/{treatment_id}` | Returns percentile simulation bands for a saved profile and treatment; accepts `duration_days`. |
 
 Full schemas, including every field of `TreatmentOption`, are browsable at
 `/docs`.

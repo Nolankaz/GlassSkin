@@ -265,9 +265,11 @@ class SimulationConfig(BaseModel):
 
 
 class SimulationRequest(BaseModel):
-    """
-    Everything the engine needs for one run.
-    Becomes the POST /simulations request body.
+    """In-process representation of everything needed for an engine run.
+
+    This is not an HTTP request body. HTTP clients provide a treatment id, and
+    the server loads packaged TreatmentParameters rather than accepting
+    treatment coefficients from clients.
     """
 
     model_config = {"extra": "forbid"}

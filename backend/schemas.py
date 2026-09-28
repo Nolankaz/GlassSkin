@@ -2,6 +2,8 @@ from typing import Optional
 from pydantic import BaseModel, Field
 from enum import Enum
 
+from simulation.models import EffectDirection, EffectKind, SkinMetricName
+
 class SkinProfileRequest(BaseModel):
     name: str = Field(min_length=1, max_length=50)
     age: int = Field(ge=0, le=120)
@@ -100,3 +102,32 @@ class TreatmentOption(BaseModel):
 
 class TreatmentResearchResult(BaseModel):
     options: list[TreatmentOption] = Field(min_length=1, max_length=5)
+
+class SimulationEffectSummary(BaseModel):
+    target_metric: SkinMetricName
+    effect_kind: EffectKind
+    direction: EffectDirection
+    citation: str
+    source_url: str
+
+class SimulationTreatment(BaseModel):
+    treatment_id: str
+    display_name: str
+    parameter_version: str
+    effects: list[SimulationEffectSummary]
+
+class SimulatedMetric(BaseModel):
+    metric: SkinMetricName
+    baseline: float
+    effect_kinds: list[EffectKind]
+    p10: list[float]
+    p50: list[float]
+    p90: list[float]
+
+class ProfileSimulation(BaseModel):
+    profile_id: int
+    treatment: SimulationTreatment
+    n_trials: int
+    random_seed: int
+    times_days: list[float]
+    metrics: list[SimulatedMetric]

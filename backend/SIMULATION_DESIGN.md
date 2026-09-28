@@ -108,7 +108,7 @@ The Monte Carlo layer uses the trial count and requires a nonnegative random see
 - simulation configuration
 - optional patient response
 
-This is planned as the eventual simulation API request body. Its patient response remains optional because later routing will distinguish a deterministic run from a Monte Carlo run. The current deterministic `simulate()` function does not consume `SimulationRequest`; it accepts the initial state, treatment, config and an explicit `PatientResponse` directly.
+This is an in-process model, not the simulation API request body. Its patient response remains optional for deterministic and Monte Carlo use. The current deterministic `simulate()` function does not consume `SimulationRequest`; it accepts the initial state, treatment, config and an explicit `PatientResponse` directly.
 
 ---
 
@@ -599,6 +599,18 @@ The simulation engine should not depend on database-specific fields.
 `skin_state_from_profile()` extracts only the 17 skin metrics and converts them into a validated `SkinState`.
 
 This keeps the simulation engine independent from the database structure.
+
+---
+
+## Simulation API
+
+`GET /simulation/treatments` lists the calibrated treatment catalogue and its effects. `GET /profiles/{profile_id}/simulations/{treatment_id}` returns p10, p50 and p90 bands for a saved profile; its `duration_days` query parameter defaults to 84 and accepts 28–168 days.
+
+The server fixes parameter version `v1`, 10,000 trials, random seed 42 and a 7-day time step. These settings stay server-owned because they define the validated simulation configuration. Clients send a `treatment_id`, not `TreatmentParameters` or coefficients; the server loads the packaged, provenance-backed treatment parameters.
+
+Returned metrics are derived from the treatment's effects, de-duplicated and ordered by `SKIN_METRIC_NAMES`. They are not hard-coded to inflammatory acne, so future multi-effect treatments can expand the response without changing the API architecture. All treatments use the same seed, giving corresponding simulated-patient draws (common random numbers) for future comparisons.
+
+Responses are recomputed rather than persisted because the calculation is deterministic and inexpensive relative to adding cache and database complexity. The API accepts no client-supplied coefficients, `n_trials`, seed or parameter version; it writes no simulation results to Supabase, calls no OpenAI, and returns percentile bands rather than a mean trajectory.
 
 ---
 

@@ -1,9 +1,13 @@
 from fastapi import FastAPI, HTTPException
+from fastapi import Query
 from schemas import SkinProfileRequest, SkinProfileUpdate
+from schemas import ProfileSimulation, SimulationTreatment
 from models import SkinProfile
 from fastapi.middleware.cors import CORSMiddleware
 from database import supabase
 from services.treatment_research import RESEARCH_VERSION, generate_treatment_options, TreatmentResearchError
+from services.treatment_simulation import DEFAULT_DURATION_DAYS, MAX_DURATION_DAYS, MIN_DURATION_DAYS, UnknownTreatmentError, list_simulatable_treatments, run_profile_simulation
+from simulation.profile_adapter import ProfileConversionError
 
 app = FastAPI()
 
@@ -237,3 +241,19 @@ async def get_treatment_options(profile_id: int):
         "result": result_data,
         "research_version": RESEARCH_VERSION,
     }
+
+
+@app.get("/simulation/treatments", response_model=list[SimulationTreatment])
+def get_simulation_treatments():
+    return list_simulatable_treatments()
+
+
+@app.get("/profiles/{profile_id}/simulations/{treatment_id}", response_model=ProfileSimulation)
+def get_profile_simulation(profile_id: int, treatment_id: str, duration_days: int = Query(DEFAULT_DURATION_DAYS, ge=MIN_DURATION_DAYS, le=MAX_DURATION_DAYS)):
+    profile = get_profile(profile_id)
+    try:
+        return run_profile_simulation(profile, treatment_id, duration_days)
+    except UnknownTreatmentError as error:
+        raise HTTPException(status_code=404, detail=f"Unknown treatment {treatment_id!r}. Valid treatment IDs: {', '.join(error.valid_ids)}") from error
+    except ProfileConversionError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
