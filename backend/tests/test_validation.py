@@ -1,15 +1,17 @@
-"""Integrity checks for Day 13 held-out and partial comparison evidence."""
+"""Day 13 evidence-integrity and model-sanity checks."""
 
 import json
 import math
 from pathlib import Path
 import re
 
+import numpy as np
 import pytest
 
 from notes.fit_treatment_parameters import EVIDENCE_DIR
-from simulation.models import SKIN_METRIC_NAMES
-from simulation.parameters import available_treatment_ids
+from simulation.models import MAX_EFFECT_UNCERTAINTY, METRIC_MAX, METRIC_MIN, SKIN_METRIC_NAMES, SkinState, TreatmentParameters
+from simulation.monte_carlo import response_column, sample_log_responses, simulate_trials_vectorised
+from simulation.parameters import available_treatment_ids, load_treatment
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
@@ -136,3 +138,110 @@ def test_exclusion_list_has_candidates_and_reasons():
         assert isinstance(entry, dict)
         assert isinstance(entry.get("candidate"), str) and entry["candidate"].strip()
         assert isinstance(entry.get("reason"), str) and entry["reason"].strip()
+
+
+# --- model sanity properties -----------------------------------------------
+
+SANITY_SEED = 42
+SANITY_TRIALS = 1_001
+EXACT_MEDIAN_TRIALS = 10_001
+WEEK_12_DAYS = 84
+
+
+def calibrated_case(treatment_id: str):
+    treatment = load_treatment(treatment_id, "v1")
+    evidence = json.loads((EVIDENCE_DIR / f"{treatment_id}.json").read_text(encoding="utf-8"))
+    assert evidence["treatment_id"] == treatment_id
+    assert len(treatment.effects) == len(evidence["effects"]) == 1
+    effect = treatment.effects[0]
+    record = evidence["effects"][0]
+    assert (effect.target_metric, effect.effect_kind, effect.direction) == (record["target_metric"], record["effect_kind"], record["direction"])
+    assert effect.effect_kind == "therapeutic" and effect.direction == "decrease"
+    return treatment, effect, record["reference_baseline_points"]
+
+
+def perturbed(treatment: TreatmentParameters, **effect_changes) -> TreatmentParameters:
+    """Revalidate the whole treatment, including its changed effect."""
+    data = treatment.model_dump()
+    assert len(data["effects"]) == 1
+    data["effects"][0].update(effect_changes)
+    return TreatmentParameters.model_validate(data)
+
+
+def legal_factor(effect, nominal_factor: float) -> float:
+    assert nominal_factor > 1 and effect.uncertainty > 0
+    return min(nominal_factor, MAX_EFFECT_UNCERTAINTY / effect.uncertainty)
+
+
+def sampled_patients(n_trials: int) -> np.ndarray:
+    return sample_log_responses(n_trials, np.random.default_rng(SANITY_SEED))
+
+
+def metric_values(treatment: TreatmentParameters, baseline: float, times_days, log_responses: np.ndarray) -> np.ndarray:
+    metric = treatment.effects[0].target_metric
+    state = SkinState(**{name: baseline if name == metric else (METRIC_MIN + METRIC_MAX) / 2 for name in SKIN_METRIC_NAMES})
+    trials = simulate_trials_vectorised(state, treatment, times_days, log_responses)
+    return trials[:, :, SKIN_METRIC_NAMES.index(metric)]
+
+
+@pytest.mark.parametrize("treatment_id", available_treatment_ids("v1"))
+def test_stronger_magnitude_increases_week12_response(treatment_id):
+    treatment, effect, baseline = calibrated_case(treatment_id)
+    factor = legal_factor(effect, 1.2)
+    assert factor > 1.0
+    stronger = perturbed(treatment, mean_magnitude=effect.mean_magnitude * factor, uncertainty=effect.uncertainty * factor)
+    assert math.isclose(stronger.effects[0].uncertainty / stronger.effects[0].mean_magnitude, effect.uncertainty / effect.mean_magnitude, rel_tol=1e-15)
+    patients = sampled_patients(SANITY_TRIALS)
+    base_changes = baseline - metric_values(treatment, baseline, [WEEK_12_DAYS], patients)[:, 0]
+    stronger_changes = baseline - metric_values(stronger, baseline, [WEEK_12_DAYS], patients)[:, 0]
+    base_median, base_p90 = np.percentile(base_changes, (50, 90), method="linear")
+    stronger_median, stronger_p90 = np.percentile(stronger_changes, (50, 90), method="linear")
+    assert stronger_median > base_median
+    assert stronger_p90 >= base_p90  # Clamping can leave the upper percentile unchanged.
+
+
+@pytest.mark.parametrize("treatment_id", available_treatment_ids("v1"))
+def test_longer_delay_reaches_response_threshold_later(treatment_id):
+    treatment, effect, baseline = calibrated_case(treatment_id)
+    delayed = perturbed(treatment, delay_days=effect.delay_days + 7)
+    patients = sampled_patients(SANITY_TRIALS)
+    days = list(range(WEEK_12_DAYS + 1))
+    base_medians = np.percentile(baseline - metric_values(treatment, baseline, days, patients), 50, axis=0, method="linear")
+    delayed_medians = np.percentile(baseline - metric_values(delayed, baseline, days, patients), 50, axis=0, method="linear")
+    assert np.all(delayed_medians <= base_medians + 1e-12)
+    threshold = 0.5 * base_medians[WEEK_12_DAYS]
+    assert threshold > 0
+    base_day = int(np.flatnonzero(base_medians >= threshold)[0])
+    delayed_hits = np.flatnonzero(delayed_medians >= threshold)
+    if len(delayed_hits) == 0:
+        # Five time scales reaches near-asymptote for saturating curves and exceeds full delayed-linear progress; 730 is the live simulation horizon.
+        safe_day = min(730, max(WEEK_12_DAYS + 1, math.ceil(delayed.effects[0].delay_days + 5 * delayed.effects[0].time_scale_days)))
+        extra_days = list(range(WEEK_12_DAYS + 1, safe_day + 1))
+        extra_medians = np.percentile(baseline - metric_values(delayed, baseline, extra_days, patients), 50, axis=0, method="linear")
+        delayed_hits = np.flatnonzero(extra_medians >= threshold) + WEEK_12_DAYS + 1
+    assert len(delayed_hits) > 0, f"delayed {treatment_id} never reached the base response threshold by the safe bound"
+    assert int(delayed_hits[0]) > base_day
+
+
+@pytest.mark.parametrize("treatment_id", available_treatment_ids("v1"))
+def test_wider_sigma_widens_band_with_exact_sampled_median(treatment_id):
+    treatment, effect, baseline = calibrated_case(treatment_id)
+    factor = legal_factor(effect, 2.0)
+    assert factor > 1.0
+    wider = perturbed(treatment, uncertainty=effect.uncertainty * factor)
+    assert wider.effects[0].mean_magnitude == effect.mean_magnitude
+    patients = sampled_patients(EXACT_MEDIAN_TRIALS)
+    assert len(patients) % 2 == 1
+    base_values = metric_values(treatment, baseline, [WEEK_12_DAYS], patients)[:, 0]
+    wider_values = metric_values(wider, baseline, [WEEK_12_DAYS], patients)[:, 0]
+    base_p10, base_median, base_p90 = np.percentile(baseline - base_values, (10, 50, 90), method="linear")
+    wider_p10, wider_median, wider_p90 = np.percentile(baseline - wider_values, (10, 50, 90), method="linear")
+    assert wider_p90 - wider_p10 > base_p90 - base_p10
+    assert np.percentile(base_values, 50, method="linear") > METRIC_MIN
+    assert np.percentile(wider_values, 50, method="linear") > METRIC_MIN
+    sigma = effect.uncertainty / effect.mean_magnitude
+    assert math.isclose(wider.effects[0].uncertainty / wider.effects[0].mean_magnitude, factor * sigma, rel_tol=1e-15)
+    median_latent = np.percentile(patients[:, response_column(effect.effect_kind)], 50, method="linear")
+    expected_wider_median = base_median * math.exp((factor - 1) * sigma * median_latent)
+    assert math.isclose(wider_median, expected_wider_median, rel_tol=1e-12, abs_tol=1e-12)
+    # No mean-direction assertion: stronger responses may be cut off by clamping at the baseline.

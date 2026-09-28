@@ -488,7 +488,7 @@ Every `TreatmentEffect` requires `Provenance`: `kind` distinguishes `published` 
 
 This requirement makes each coefficient carry a provenance claim. It does not establish that a paper is correct or that a citation supports its interpretation. The evidence ledger and human review remain necessary.
 
-Calibration uses **active-arm change from baseline**, not active-minus-vehicle. The product question is “what happens when someone uses this treatment?” Vehicle and other control observations remain in the ledger for later validation and interpretation. This is a model decision, not a universal clinical rule; the fitted effect may include changes that also occurred in a control arm.
+Calibration uses **active-arm change from baseline**, not active-minus-vehicle. The product question is “what happens when someone uses this treatment?” Vehicle and other control observations remain in the ledger as context; the simulator has no corresponding vehicle or placebo arm. This is a model decision, not a universal clinical rule; the fitted effect may include changes that also occurred in a control arm.
 
 Adverse-event incidence is not a severity magnitude: “20% experienced dryness” does not mean “dryness +2 points.” Only a usable numerical magnitude-over-time signal can become a calibrated skin-metric effect. The selected evidence has no complete graded side-effect trajectory, so current simulations may understate treatment burden.
 
@@ -523,7 +523,22 @@ Low RMSE means a curve lies close to the **converted** evidence points. It does 
 - Observed response spread contains measurement error, natural fluctuation, adherence differences, vehicle response, and other study variation as well as biological variability. The derived or borrowed sigma may overestimate true between-patient biological response variability.
 - Some fitted asymptotes extend beyond observed study duration where `g(t_max)` is low; the fit report flags these extrapolations.
 - Parameters calibrated at reference baselines become absolute point changes in the engine. Applying them across different starting severities can be optimistic for mild states and conservative for severe states.
+- Floor clamping can cap the upper tail and change a simulated mean even when the fitted median target is close; the model's positive therapeutic multiplier cannot represent a worsening patient response.
 - Excluded or unmodeled side effects make the simulated treatment burden optimistic.
+
+---
+
+## Validation and Sensitivity
+
+Day 13 evaluated the frozen `v1` inflammatory-acne effects under the [preregistered validation protocol](notes/validation/validation_protocol.md). Tier 0 checks **in-sample reproduction, not validation**, using the Day 12 calibration observations. Tier 1 uses independent 302 replicate-trial observations that the fitter never saw; only Tier 1 receives held-out validation verdicts. Tier 2 contains partial or cross-source comparisons with no formal verdict. Vehicle, placebo, and other control arms are context only because the engine does not simulate a matching control trajectory.
+
+The [held-out evidence](notes/validation/holdout_evidence.json) is physically separate from `notes/calibration/evidence/`, the fitter's input directory. Integrity tests check that separation and that the 302 trial IDs are disjoint from calibration provenance. Comparisons match source mean to simulated mean and source median to simulated median, at source-mapped baselines. For mean-basis calibration, the fitter converted a reported mean to a median-referenced target using `reported_mean / exp(sigma² / 2)`; Day 13 reverses that conversion for in-sample mean comparisons and reports the median fit residual separately. Population sampling and floor clamping can make the simulated mean diverge from the fitted median target without indicating a bookkeeping error.
+
+The validation harness [generates results](notes/validation/validation_results.md) through the production Monte Carlo sampling and vectorised trial path. It pins raw-trial p50 to `simulate_many(...)`, measures week-12 seed-to-seed noise across fixed seeds, fingerprints the frozen parameter JSON, and produces deterministic tables. Metamorphic tests verify for every calibrated treatment that stronger magnitude increases week-12 response, longer delay moves response later, and wider sigma widens the p10–p90 band with the expected sampled-median relationship. These are internal mathematical checks, not clinical validation.
+
+Local one-at-a-time sensitivity perturbs `mean_magnitude`, `sigma = uncertainty / mean_magnitude`, `time_scale_days`, and `delay_days` with common sampled patients. It ranks their influence separately on the week-12 median and p10–p90 width. Failed standardized perturbations remain marked as not constructible. This local analysis does not measure interactions; holding fitted magnitude fixed for sigma omits sigma's indirect role in Day 12 mean-to-median calibration. The baseline sweep applies each frozen absolute-point effect at several starting severities to show how percentage improvement and floor clamping change. Benzoyl peroxide, clindamycin, and isotretinoin use borrowed pooled sigma rather than treatment-specific response spread, limiting interpretation of their bands.
+
+Initial held-out replicate validation has now been performed for available tretinoin and tazarotene endpoints. Frozen `v1` did **not** meet the preregistered week-12 agreement thresholds for either held-out row. No calibration or parameter change was made in response. The [Day 13 validation report](notes/validation/validation_report.md) gives the results, caveats, disagreements, and candidate future directions.
 
 ---
 
@@ -557,7 +572,10 @@ The simulation obeys these model, curve, deterministic-engine, and Monte Carlo r
 - Every `TreatmentEffect` carries `Provenance`; every shipped effect in `simulation/parameters/` has published provenance, never fixture provenance.
 - A parameter filename stem equals its `treatment_id`; `parameter_version` equals its containing version directory; IDs are unique within each version.
 - Parameter version syntax is validated before filesystem access, and loading is deterministic and sorted by `treatment_id`.
-- Calibrated parameters reproduce recorded source targets through the real engine within their recorded residuals.
+- Calibrated parameters reproduce recorded median-referenced targets through the deterministic reference-response engine within their recorded fit residuals; the assembled Monte Carlo summaries are evaluated separately.
+- Held-out trial evidence remains outside the fitter's calibration evidence directory, and held-out trial IDs do not occur in calibration provenance.
+- With the same sampled patients, stronger magnitude increases the week-12 median improvement, and a longer delay moves the response threshold later for each calibrated `v1` treatment.
+- With the same sampled patients, wider sigma widens the week-12 p10–p90 improvement band and follows the model's exact sampled-median relationship when the median is unclamped.
 
 These rules are enforced through Pydantic validation and automated tests.
 
@@ -615,7 +633,7 @@ Eligibility ranges are not observed baselines. The conversion rule has three bra
 
 ### Absolute versus proportional effects
 
-The engine applies an absolute point effect calibrated at a reference baseline. A mildly affected user can therefore receive the same modeled point change as a more severely affected user. This may be over-optimistic for mild starting states and conservative for severe starting states. It is a known limitation to examine in Day 13.
+The engine applies an absolute point effect calibrated at a reference baseline. A mildly affected user can therefore receive the same modeled point change as a more severely affected user. This can be optimistic for mild starting states and conservative for severe starting states. Day 13's baseline sweep measured the resulting percentage changes and floor clamping; see the [validation report](notes/validation/validation_report.md). These sweep results are model behavior, not clinical efficacy evidence at new baselines.
 
 ---
 
@@ -649,12 +667,12 @@ The treatments used in `tests/test_engine.py` and `notes/plot_trajectory.py` are
 
 ## Deliberately Not Decided Yet
 
-Days 10–12 fixed deterministic composition, Monte Carlo response sampling, and calibration for six treatments. The following parts remain intentionally unresolved for later work:
+Days 10–13 fixed deterministic composition, Monte Carlo response sampling, calibration for six treatments, and an initial held-out replicate evaluation. The following parts remain intentionally unresolved for later work:
 
 - curve choice and calibration for newly added treatments; curves for the currently calibrated six are fitted
 - treatment interactions
 - adherence
 - treatment discontinuation and rebound
-- clinical validation
+- broader independent external validation across populations, doses, and horizons beyond the available 302 replicate endpoints
 
-Day 8 defines the simulation vocabulary and validation rules. Day 9 fixes the mathematical curve shapes and their invariants. Day 10 composes them into an absolute deterministic trajectory. Day 11 samples patient responses and produces percentile bands while preserving those rules. Day 12 records sourced published treatment evidence, fits calibrated parameters with provenance, loads versioned parameter data, and tests reproduction of the recorded targets through the real engine.
+Day 8 defines the simulation vocabulary and validation rules. Day 9 fixes the mathematical curve shapes and their invariants. Day 10 composes them into an absolute deterministic trajectory. Day 11 samples patient responses and produces percentile bands while preserving those rules. Day 12 records sourced published treatment evidence, fits calibrated parameters with provenance, loads versioned parameter data, and tests reproduction of the recorded targets through the real engine. Day 13 tests model sanity, evaluates frozen `v1` against separated held-out replicates, and measures local parameter and baseline sensitivity without refitting.
