@@ -52,3 +52,6 @@ export type SkinProfile = {
 export type ApiSkinProfile = Omit<SkinProfile, "cystic_nodular_acne"> & {
   cystic_nodular_acne: number | null;
 };
+
+/** Derived from SkinProfile so the metric names remain defined in one place. */
+export type SkinMetricName = Exclude<keyof SkinProfile, "id" | "name" | "age" | "gender">;

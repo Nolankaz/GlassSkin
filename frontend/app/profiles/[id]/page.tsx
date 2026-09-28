@@ -6,6 +6,7 @@ import type { ApiSkinProfile, SkinProfile } from "@/types/SkinProfile";
 import Link from "next/link";
 import SkinMetricBar from "@/components/SkinMetricBar";
 import SkinMetricInput from "@/components/SkinMetricInput";
+import SimulationPanel from "@/components/SimulationPanel";
 import TreatmentResearch from "@/components/TreatmentResearch";
 import { apiUrl } from "@/lib/api";
 import { normalizeProfile } from "@/lib/profiles";
@@ -403,7 +404,11 @@ export default function ProfilePage() {
       )}
 
       {!isEditing && (
-        <TreatmentResearch key={treatmentResearchKey} profileId={profile.id} />
+        <SimulationPanel key={`simulation-${treatmentResearchKey}`} profileId={profile.id} />
+      )}
+
+      {!isEditing && (
+        <TreatmentResearch key={`research-${treatmentResearchKey}`} profileId={profile.id} />
       )}
     </main>
   );
