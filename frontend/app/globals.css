@@ -571,6 +571,100 @@ h4 {
   font-size: 0.86rem;
 }
 
+/* Simulated outcome trajectory */
+.trajectory-figure {
+  margin: 18px 0 0;
+}
+
+.trajectory-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.trajectory-grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.trajectory-band {
+  fill: var(--primary);
+  fill-opacity: 0.16;
+}
+
+.trajectory-start {
+  stroke: var(--muted);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 5;
+}
+
+.trajectory-median {
+  fill: none;
+  stroke: var(--primary-dark);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.trajectory-axis,
+.trajectory-tick {
+  stroke: var(--line-strong);
+  stroke-width: 1;
+}
+
+.trajectory-tick-label,
+.trajectory-band-label {
+  fill: var(--muted);
+  font-size: 12px;
+}
+
+.trajectory-caption {
+  margin-top: 6px;
+}
+
+/* Simulation model context */
+.simulation-about {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+}
+
+.simulation-about summary {
+  color: var(--ink);
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.simulation-about summary:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 3px;
+}
+
+.simulation-about p {
+  margin: 12px 0 0;
+  color: var(--muted);
+}
+
+.simulation-about a {
+  color: var(--primary);
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Per-metric simulation edge messages */
+.simulation-empty-notice {
+  margin-bottom: 16px;
+}
+
+.simulation-low-warning {
+  border-color: var(--warning);
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+
 @media (max-width: 860px) {
   .app-shell {
     width: min(100% - 24px, 720px);

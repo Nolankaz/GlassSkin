@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from "react";
 import { apiUrl } from "@/lib/api";
 import { METRIC_LABELS } from "@/lib/metrics";
 import type { EffectKind, ProfileSimulation, SimulationTreatment } from "@/types/Simulation";
+import SimulationAbout from "@/components/SimulationAbout";
+import TrajectoryChart from "@/components/TrajectoryChart";
 
 interface SimulationPanelProps {
   profileId: number;
@@ -17,6 +19,9 @@ const EFFECT_KIND_LABELS: Record<EffectKind, string> = {
   therapeutic: "therapeutic",
   side_effect: "side effect",
 };
+
+// Below 5 is beneath every v1 calibration baseline (5.0–7.5); see the Day 13 baseline sweep.
+const LOW_BASELINE_THRESHOLD = 5;
 
 async function readErrorDetail(response: Response, fallback: string): Promise<string> {
   try {
@@ -47,12 +52,23 @@ function SimulationResult({ simulation }: { simulation: ProfileSimulation }) {
 
       {simulation.metrics.map((metric) => {
         const label = METRIC_LABELS[metric.metric];
+        const hasDecreasingEffect = simulation.treatment.effects.some((effect) => effect.target_metric === metric.metric && effect.direction === "decrease");
+        const nothingToReduce = hasDecreasingEffect && metric.baseline === 0;
+        const lowBaseline = hasDecreasingEffect && metric.baseline > 0 && metric.baseline < LOW_BASELINE_THRESHOLD;
 
         return (
           <div className="section" key={metric.metric}>
             <h4>{label}</h4>
-            <p>{label}: {metric.baseline.toFixed(1)} at the start → median {metric.p50[last].toFixed(1)} at week {week}</p>
-            <p>80% of simulated outcomes at week {week} land between {metric.p10[last].toFixed(1)} and {metric.p90[last].toFixed(1)}.</p>
+            {nothingToReduce ? (
+              <div className="notice simulation-empty-notice">This profile scores 0 for {label}, so there is nothing for this treatment to reduce.</div>
+            ) : (
+              <>
+                {lowBaseline && <div className="notice simulation-low-warning">This starting score is below the range used to calibrate the model. Results are least reliable at mild starting points: many simulated patients can reach 0 because the model clamps scores at the floor, but that does not mean clearing should be expected.</div>}
+                <TrajectoryChart timesDays={simulation.times_days} p10={metric.p10} p50={metric.p50} p90={metric.p90} baseline={metric.baseline} label={label} />
+                <p>{label}: {metric.baseline.toFixed(1)} at the start → median {metric.p50[last].toFixed(1)} at week {week}</p>
+                <p>80% of simulated outcomes at week {week} land between {metric.p10[last].toFixed(1)} and {metric.p90[last].toFixed(1)}.</p>
+              </>
+            )}
             <div className="badge-row">
               {metric.effect_kinds.map((kind, index) => <span className="badge" key={`${kind}-${index}`}>{EFFECT_KIND_LABELS[kind]}</span>)}
             </div>
@@ -190,6 +206,8 @@ export default function SimulationPanel({ profileId }: SimulationPanelProps) {
         </div>
       )}
       {runStatus === "done" && simulation && <SimulationResult simulation={simulation} />}
+
+      {catalogueStatus === "ready" && treatments.length > 0 && <SimulationAbout treatments={treatments} />}
 
       <p className="disclaimer">This simulation is informational, describes simulated populations, and is not medical advice.</p>
     </section>
