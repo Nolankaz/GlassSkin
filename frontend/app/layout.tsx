@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "GlassSkinAI",
-  description: "AI-powered skin profile and treatment research.",
+  description: "Evidence-sourced treatment research and calibrated simulation outcome ranges for skin profiles.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

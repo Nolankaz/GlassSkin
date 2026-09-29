@@ -94,7 +94,7 @@ create table public.skin_profiles (
 -- Bumping that constant in Python invalidates every older cached row without
 -- deleting it, because the read query filters on the current version.
 --
--- Written by  GET    /profiles/{id}/treatment-options  (on cache miss)
+-- Written by  POST   /profiles/{id}/treatment-options  (on cache miss)
 -- Read by     GET    /profiles/{id}/treatment-options/saved
 -- Deleted by  PATCH  /profiles/{id}, when a research-relevant field changed
 create table public.treatment_research_results (

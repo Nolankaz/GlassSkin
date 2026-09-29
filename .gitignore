@@ -3,6 +3,7 @@
 backend/.venv/
 __pycache__/
 *.pyc
+.pytest_cache/
 
 # Next.js
 frontend/node_modules/
