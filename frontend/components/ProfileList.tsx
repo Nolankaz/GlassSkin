@@ -3,8 +3,12 @@
 import Link from "next/link";
 import type { SkinProfile } from "@/types/SkinProfile";
 
+export type ProfileListStatus = "loading" | "error" | "ready";
+
 type ProfileListProps = {
   profiles: SkinProfile[];
+  status: ProfileListStatus;
+  onRetry: () => void;
 };
 
 const summaryMetrics = [
@@ -14,7 +18,7 @@ const summaryMetrics = [
   ["Oiliness", "oiliness"],
 ] as const;
 
-export default function ProfileList({ profiles }: ProfileListProps) {
+export default function ProfileList({ profiles, status, onRetry }: ProfileListProps) {
   return (
     <section className="panel">
       <div className="section-header">
@@ -24,13 +28,22 @@ export default function ProfileList({ profiles }: ProfileListProps) {
         </div>
       </div>
 
-      {profiles.length === 0 && (
+      {status === "loading" && <div className="loading-card">Loading profiles...</div>}
+
+      {status === "error" && (
+        <div className="error-card">
+          <p>Unable to load profiles. Check that the backend is running and try again.</p>
+          <button className="button" onClick={onRetry}>Retry</button>
+        </div>
+      )}
+
+      {status === "ready" && profiles.length === 0 && (
         <div className="empty-state">
           Create your first skin profile to begin treatment research.
         </div>
       )}
 
-      <div className="profile-list">
+      {status === "ready" && profiles.length > 0 && <div className="profile-list">
         {profiles.map((profile) => (
           <article className="profile-card" key={profile.id}>
             <div className="profile-card-top">
@@ -59,7 +72,7 @@ export default function ProfileList({ profiles }: ProfileListProps) {
             </div>
           </article>
         ))}
-      </div>
+      </div>}
     </section>
   );
 }

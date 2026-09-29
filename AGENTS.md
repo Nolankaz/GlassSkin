@@ -88,13 +88,13 @@ The active routes are:
 - `POST /profile`: validate and create a profile.
 - `PATCH /profiles/{profile_id}`: partial update using `model_dump(exclude_unset=True)`; return `404` if absent.
 - `GET /profiles/{profile_id}/treatment-options/saved`: return current-version cached research or `result: null`; never call OpenAI.
-- `GET /profiles/{profile_id}/treatment-options`: return current cached research, or generate and best-effort cache a new result; return `404` for an unknown profile and `502` for a research failure.
+- `POST /profiles/{profile_id}/treatment-options`: return current cached research, or generate and best-effort cache a new result; return `404` for an unknown profile and `502` for a research failure.
 
-The treatment-generation endpoint is a `GET` with side effects: a cache miss spends money and writes to Supabase. It has no concurrency guard. Preserve its behavior unless the requested change explicitly addresses that design.
+The treatment-generation endpoint is a `POST` with side effects: a cache miss can call OpenAI and spend money, and may write a research result to Supabase. There is no backend concurrency guard, so concurrent cache misses can generate more than once. Preserve its behavior unless the requested change explicitly addresses that design.
 
 ## Data contracts and Supabase rules
 
-`skin_profiles` contains identifiers/timestamps, name, age, gender, and 17 integer concern metrics: `inflammatory_acne`, `cystic_nodular_acne`, `blackheads`, `whiteheads`, `pie`, `pih`, `redness`, `rosacea`, `dryness`, `sensitivity`, `irritation`, `oiliness`, `texture_irregularity`, `acne_scarring`, `enlarged_pores`, `dark_circles`, and `uneven_skin_tone`. API profile creation validates age from 0 to 120 and every metric from 0 to 10. The partial-update age range currently differs (10 to 100); do not silently reconcile contract differences during unrelated work.
+`skin_profiles` contains identifiers/timestamps, name, age, gender, and 17 integer concern metrics: `inflammatory_acne`, `cystic_nodular_acne`, `blackheads`, `whiteheads`, `pie`, `pih`, `redness`, `rosacea`, `dryness`, `sensitivity`, `irritation`, `oiliness`, `texture_irregularity`, `acne_scarring`, `enlarged_pores`, `dark_circles`, and `uneven_skin_tone`. API profile creation and partial updates both validate age from 0 to 120 and every metric from 0 to 10.
 
 Keep the metric names synchronized across `backend/schemas.py`, `backend/models.py`, `backend/main.py`, `backend/services/treatment_research.py`, `frontend/types/SkinProfile.ts`, profile form/edit UI, and any future simulation adapter. The frontend intentionally accepts `cystic_nodular_acne: number | null` only in `ApiSkinProfile`, then converts nullish legacy data to `0` in `normalizeProfile()` so application-level `SkinProfile` remains strict.
 

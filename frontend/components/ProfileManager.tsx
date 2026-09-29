@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 import ProfileForm from "./ProfileForm";
-import ProfileList from "./ProfileList";
+import ProfileList, { type ProfileListStatus } from "./ProfileList";
 
 import type { ApiSkinProfile, SkinProfile } from "@/types/SkinProfile";
 import { apiUrl } from "@/lib/api";
@@ -11,42 +11,42 @@ import { normalizeProfile } from "@/lib/profiles";
 
 export default function ProfileManager() {
   const [profiles, setProfiles] = useState<SkinProfile[]>([]);
-
-  async function refreshProfiles() {
-    const response = await fetch(apiUrl("/profiles"));
-
-    if (!response.ok) {
-      console.error("Failed to load profiles");
-      return;
-    }
-
-    const data: ApiSkinProfile[] = await response.json();
-
-    setProfiles(data.map(normalizeProfile));
-  }
+  const [status, setStatus] = useState<ProfileListStatus>("loading");
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   useEffect(() => {
-    async function loadInitialProfiles() {
-      const response = await fetch(apiUrl("/profiles"));
+    let ignore = false;
 
-      if (!response.ok) {
-        console.error("Failed to load profiles");
-        return;
+    async function loadProfiles() {
+      try {
+        const response = await fetch(apiUrl("/profiles"));
+        if (!response.ok) throw new Error(`Unable to load profiles (${response.status})`);
+
+        const data: ApiSkinProfile[] = await response.json();
+        if (ignore) return;
+        setProfiles(data.map(normalizeProfile));
+        setStatus("ready");
+      } catch (error) {
+        if (ignore) return;
+        console.error("Failed to load profiles", error);
+        setStatus("error");
       }
-
-      const data: ApiSkinProfile[] = await response.json();
-
-      setProfiles(data.map(normalizeProfile));
     }
 
-    loadInitialProfiles();
-  }, []);
+    loadProfiles();
+    return () => { ignore = true; };
+  }, [loadAttempt]);
+
+  function retry() {
+    setStatus("loading");
+    setLoadAttempt((attempt) => attempt + 1);
+  }
 
   return (
     <div className="profile-manager">
-      <ProfileList profiles={profiles} />
+      <ProfileList profiles={profiles} status={status} onRetry={retry} />
 
-      <ProfileForm onProfileCreated={refreshProfiles} />
+      <ProfileForm onProfileCreated={() => setLoadAttempt((attempt) => attempt + 1)} />
     </div>
   );
 }

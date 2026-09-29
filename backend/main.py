@@ -191,8 +191,8 @@ def get_saved_treatment_options(profile_id: int):
         "research_version": RESEARCH_VERSION,
     }
 
-@app.get("/profiles/{profile_id}/treatment-options")
-async def get_treatment_options(profile_id: int):
+@app.post("/profiles/{profile_id}/treatment-options")
+async def research_treatment_options(profile_id: int):
     response = (
         supabase
         .table("skin_profiles")

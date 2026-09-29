@@ -79,7 +79,7 @@ See `plans/` for the day-by-day roadmap.
    `GET /profiles/{id}/treatment-options/saved`. If a cached result exists it
    renders immediately — no model call, no cost.
 2. Otherwise the user clicks *Explore Treatment Options*, which calls
-   `GET /profiles/{id}/treatment-options`.
+   `POST /profiles/{id}/treatment-options`.
 3. The backend loads the profile from Supabase, re-checks the cache, and on a
    miss calls `generate_treatment_options()`.
 4. `services/treatment_research.py` flattens the profile into a text block,
@@ -222,7 +222,7 @@ Base URL `http://127.0.0.1:8000`. No authentication.
 | `POST`  | `/profile`                                    | Create a profile from a `SkinProfileRequest`; returns the inserted row.      |
 | `PATCH` | `/profiles/{id}`                              | Partial update (`SkinProfileUpdate`, `exclude_unset`). Also deletes that profile's cached research. `404` if missing. |
 | `GET`   | `/profiles/{id}/treatment-options/saved`      | Cached research only. `result` is `null` on a miss — never calls OpenAI.     |
-| `GET`   | `/profiles/{id}/treatment-options`            | Returns cached research, or generates and caches it. `404` unknown profile, `502` if research fails. |
+| `POST`  | `/profiles/{id}/treatment-options`            | Returns cached research, or generates and caches it. `404` unknown profile, `502` if research fails. |
 | `GET`   | `/simulation/treatments`                      | Lists treatments available to the calibrated simulator.                    |
 | `GET`   | `/profiles/{profile_id}/simulations/{treatment_id}` | Returns percentile simulation bands for a saved profile and treatment; accepts `duration_days`. |
 

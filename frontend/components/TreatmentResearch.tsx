@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import TreatmentOptionCard from "./TreatmentOptionCard";
 
@@ -20,39 +20,61 @@ export default function TreatmentResearch({ profileId, }: TreatmentResearchProps
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingSavedResearch, setIsLoadingSavedResearch] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [savedLoadError, setSavedLoadError] = useState(false);
+  const [savedLoadAttempt, setSavedLoadAttempt] = useState(0);
+  const [hasNoSavedResearch, setHasNoSavedResearch] = useState(false);
+  const researchInFlightRef = useRef(false);
 
   useEffect(() => {
+    let ignore = false;
+
     async function loadSavedResearch() {
       setIsLoadingSavedResearch(true);
 
       try {
         const response = await fetch(apiUrl(`/profiles/${profileId}/treatment-options/saved`));
+        if (ignore) return;
 
         if (!response.ok) {
-          return;
+          throw new Error(`Unable to check saved treatment research (HTTP ${response.status})`);
         }
 
         const data: SavedTreatmentResearchResponse = await response.json();
+        if (ignore) return;
+        setSavedLoadError(false);
+        setHasNoSavedResearch(data.result === null);
 
         if (data.result) {
           setResearch(data.result);
         }
       } catch (error) {
+        if (ignore) return;
         console.error(error);
+        setSavedLoadError(true);
       } finally {
-        setIsLoadingSavedResearch(false);
+        if (!ignore) setIsLoadingSavedResearch(false);
       }
     }
 
     loadSavedResearch();
-  }, [profileId]);
+    return () => { ignore = true; };
+  }, [profileId, savedLoadAttempt]);
+
+  function retrySavedLoad() {
+    setSavedLoadError(false);
+    setHasNoSavedResearch(false);
+    setIsLoadingSavedResearch(true);
+    setSavedLoadAttempt((attempt) => attempt + 1);
+  }
 
   async function researchTreatments() {
+    if (researchInFlightRef.current) return;
+    researchInFlightRef.current = true;
     setIsLoading(true);
     setError(null);
 
     try {
-      const response = await fetch(apiUrl(`/profiles/${profileId}/treatment-options`));
+      const response = await fetch(apiUrl(`/profiles/${profileId}/treatment-options`), { method: "POST" });
 
       if (!response.ok) {
         throw new Error("Unable to research treatment options");
@@ -66,6 +88,7 @@ export default function TreatmentResearch({ profileId, }: TreatmentResearchProps
 
       setError("Unable to research treatment options. Please try again.");
     } finally {
+      researchInFlightRef.current = false;
       setIsLoading(false);
     }
   }
@@ -82,7 +105,7 @@ export default function TreatmentResearch({ profileId, }: TreatmentResearchProps
           </p>
         </div>
 
-        {!research && !isLoading && !isLoadingSavedResearch && !error && (
+        {!research && hasNoSavedResearch && !isLoading && !isLoadingSavedResearch && !savedLoadError && !error && (
           <button className="button" onClick={researchTreatments}>
             Explore Treatment Options
           </button>
@@ -92,6 +115,13 @@ export default function TreatmentResearch({ profileId, }: TreatmentResearchProps
       {isLoadingSavedResearch && (
         <div className="loading-card">
           <h3>Checking saved treatment research...</h3>
+        </div>
+      )}
+
+      {savedLoadError && !isLoadingSavedResearch && (
+        <div className="error-card">
+          <p>Saved treatment research could not be checked. Make sure the backend is running and try again.</p>
+          <button className="button" onClick={retrySavedLoad}>Retry</button>
         </div>
       )}
 

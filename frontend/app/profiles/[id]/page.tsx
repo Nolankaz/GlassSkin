@@ -16,6 +16,8 @@ export default function ProfilePage() {
   const id = params.id;
 
   const [profile, setProfile] = useState<SkinProfile | null>(null);
+  const [loadStatus, setLoadStatus] = useState<"loading" | "not-found" | "error" | "ready">("loading");
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   const [isEditing, setIsEditing] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
@@ -162,53 +164,102 @@ export default function ProfilePage() {
       return;
     }
 
-    const response = await fetch(apiUrl(`/profiles/${profile.id}`), {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(updateData),
-    });
-
-    if (!response.ok) {
-      console.error("Failed to update profile");
-      setEditError("Unable to save profile changes. Please check the backend logs.");
-      return;
-    }
-
-    const updatedProfile: ApiSkinProfile = await response.json();
-
-    setProfile(normalizeProfile(updatedProfile));
-    setIsEditing(false);
-    setTreatmentResearchKey((key) => key + 1);
-  }
-
-  useEffect(() => {
-    async function fetchProfile() {
-      const response = await fetch(apiUrl(`/profiles/${id}`));
+    try {
+      const response = await fetch(apiUrl(`/profiles/${profile.id}`), {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(updateData),
+      });
 
       if (!response.ok) {
-        console.error("Failed to load profile");
+        console.error("Failed to update profile");
+        setEditError("Unable to save profile changes. Please check the backend logs.");
         return;
       }
 
-      const data: ApiSkinProfile = await response.json();
+      const updatedProfile: ApiSkinProfile = await response.json();
 
-      setProfile(normalizeProfile(data));
+      setProfile(normalizeProfile(updatedProfile));
+      setIsEditing(false);
+      setTreatmentResearchKey((key) => key + 1);
+    } catch (error) {
+      console.error("Failed to save profile changes", error);
+      setEditError("The backend could not be reached. Your changes were not saved.");
+    }
+  }
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function fetchProfile() {
+      try {
+        const response = await fetch(apiUrl(`/profiles/${id}`));
+        if (ignore) return;
+
+        if (response.status === 404 || response.status === 422) {
+          setLoadStatus("not-found");
+          return;
+        }
+
+        if (!response.ok) {
+          console.error(`Failed to load profile (${response.status})`);
+          setLoadStatus("error");
+          return;
+        }
+
+        const data: ApiSkinProfile = await response.json();
+        if (ignore) return;
+        setProfile(normalizeProfile(data));
+        setLoadStatus("ready");
+      } catch (error) {
+        if (ignore) return;
+        console.error("Failed to load profile", error);
+        setLoadStatus("error");
+      }
     }
 
-    if (id) {
-      fetchProfile();
-    }
-  }, [id]);
+    fetchProfile();
+    return () => { ignore = true; };
+  }, [id, loadAttempt]);
 
-  if (!profile) {
+  function retryLoad() {
+    setLoadStatus("loading");
+    setLoadAttempt((attempt) => attempt + 1);
+  }
+
+  if (loadStatus === "loading") {
     return (
       <main className="app-shell">
+        <Link className="back-link" href="/">← Back to profiles</Link>
         <div className="loading-card">Loading profile...</div>
       </main>
     );
   }
+
+  if (loadStatus === "not-found") {
+    return (
+      <main className="app-shell">
+        <Link className="back-link" href="/">← Back to profiles</Link>
+        <div className="notice">This profile does not exist. It may have been deleted, or the link may be wrong.</div>
+      </main>
+    );
+  }
+
+  if (loadStatus === "error") {
+    return (
+      <main className="app-shell">
+        <Link className="back-link" href="/">← Back to profiles</Link>
+        <div className="error-card">
+          <p>Unable to load this profile. Check that the backend is running and try again.</p>
+          <button className="button" onClick={retryLoad}>Retry</button>
+        </div>
+      </main>
+    );
+  }
+
+  if (!profile) return null;
 
   const viewSections = [
     {
