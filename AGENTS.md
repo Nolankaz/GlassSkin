@@ -1,4 +1,4 @@
-# GlassSkinAI agent guide
+# GlassSkin agent guide
 
 ## Line-breaking / formatting rule
 
@@ -47,7 +47,7 @@ Apply these principles:
 
 ## Project overview
 
-GlassSkinAI is a health-adjacent full-stack application for creating structured digital skin profiles and generating evidence-grounded treatment research. It is informational and is not medical advice. The current product supports profile creation, listing, detail viewing, partial editing, AI-assisted treatment research, and cached research results. Calibrated Monte Carlo treatment simulation is implemented through two GET routes and displayed on the profile page; its V1 parameter data is frozen.
+GlassSkin is a health-adjacent full-stack application for creating structured digital skin profiles and generating evidence-grounded treatment research. It is informational and is not medical advice. The current product supports profile creation, listing, detail viewing, partial editing, AI-assisted treatment research, and cached research results. Calibrated Monte Carlo treatment simulation is implemented through two GET routes and displayed on the profile page; its V1 parameter data is frozen.
 
 ## Repository layout and Git topology
 

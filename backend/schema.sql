@@ -1,4 +1,4 @@
--- GlassSkinAI — Supabase / Postgres schema
+-- GlassSkin — Supabase / Postgres schema
 --
 -- STATUS: the CURRENT-SCHEMA sections below are transcribed from read-only
 -- queries run against the live Supabase project. They are evidence, not

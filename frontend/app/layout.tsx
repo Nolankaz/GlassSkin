@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "GlassSkinAI",
+  title: "GlassSkin",
   description: "Evidence-sourced treatment research and calibrated simulation outcome ranges for skin profiles.",
 };
 

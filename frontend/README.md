@@ -1,6 +1,6 @@
-# GlassSkinAI — frontend
+# GlassSkin — frontend
 
-Next.js 16 (App Router) + React 19 + TypeScript client for GlassSkinAI.
+Next.js 16 (App Router) + React 19 + TypeScript client for GlassSkin.
 
 The project-level documentation — architecture, backend setup, Supabase schema,
 environment variables, development workflow — lives in the repository root:
@@ -10,7 +10,7 @@ environment variables, development workflow — lives in the repository root:
 ## Quick start
 
 ```bash
-npm install
+npm ci
 cp .env.local.example .env.local   # optional; defaults to http://127.0.0.1:8000
 npm run dev                        # http://localhost:3000
 ```

@@ -5,7 +5,7 @@ export default function Home() {
     <main className="app-shell">
       <section className="hero">
         <span className="eyebrow">AI skin profile system</span>
-        <h1>GlassSkinAI</h1>
+        <h1>GlassSkin</h1>
 
         <p className="lead">
           Build a structured skin profile and research treatment options with

@@ -36,7 +36,7 @@ TRUSTED_MEDICAL_DOMAINS = [
 RESEARCH_VERSION = "v1"
 
 TREATMENT_RESEARCH_INSTRUCTIONS = """
-You are the medical research layer for GlassSkinAI.
+You are the medical research layer for GlassSkin.
 
 Your task is to analyze the supplied digital skin profile and identify up to
 three evidence-supported acne treatment options worth considering.

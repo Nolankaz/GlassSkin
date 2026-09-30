@@ -1,13 +1,13 @@
-# GlassSkinAI
+# GlassSkin
 
-GlassSkinAI turns a structured 17-metric skin profile into evidence-sourced treatment research and calibrated simulation outcome ranges over time. Its current simulator shows how published-trial-based treatment effects vary across a simulated population.
+GlassSkin turns a structured 17-metric skin profile into evidence-sourced treatment research and calibrated simulation outcome ranges over time. Its current simulator shows how published-trial-based treatment effects vary across a simulated population.
 
 > **Not medical advice.** Every output is informational. Treatment decisions
 > belong to a licensed clinician.
 
 ## The problem
 
-Skin treatment advice often reduces a changing response to a single point claim. A range over time shows how much simulated responses can differ under the same fixed treatment assumptions, without presenting one outcome as a personal forecast. Treatment options also need traceable medical sources so readers can inspect the evidence behind a rationale, benefit, or risk. GlassSkinAI pairs that research with a deliberately limited simulation whose calibration and disagreements with held-out evidence are visible.
+Skin treatment advice often reduces a changing response to a single point claim. A range over time shows how much simulated responses can differ under the same fixed treatment assumptions, without presenting one outcome as a personal forecast. Treatment options also need traceable medical sources so readers can inspect the evidence behind a rationale, benefit, or risk. GlassSkin pairs that research with a deliberately limited simulation whose calibration and disagreements with held-out evidence are visible.
 
 ## Features
 
@@ -16,7 +16,21 @@ Skin treatment advice often reduces a changing response to a single point claim.
 - **Simulation:** Explore six calibrated treatments through p10/p50/p90 fan-chart ranges for the metrics each treatment affects. The UI shows citations, source links, parameter version, a low-baseline warning, and an “About this simulation” explanation.
 - **Reliability:** Profile and research flows expose loading, empty, error-with-Retry, and not-found states where applicable.
 
-<!-- Session 5 screenshots for docs/screenshots/: home; concern map; research cards; simulation chart with About open; mild/low-baseline warning. -->
+## Screenshots
+
+![GlassSkin home page with saved profiles beside the create profile form](docs/screenshots/home.png)
+
+![Skin Concern Map showing grouped concern scores for a saved profile](docs/screenshots/profile-concern-map.png)
+
+![Three saved treatment research cards with rationale and confidence labels](docs/screenshots/research-cards.png)
+
+![Expanded treatment research card showing benefits, risks, and linked evidence sources](docs/screenshots/research-cards-info-and-sources.png)
+
+![Tretinoin simulation chart showing the median and middle 80 percent of simulated inflammatory acne outcomes](docs/screenshots/simulation-chart.png)
+
+![Simulation source citation and expanded About panel describing limitations and validation](docs/screenshots/simulation-chart-sources-and-about.png)
+
+![Low-baseline warning above a simulation chart for an inflammatory acne starting score of three](docs/screenshots/low-baseline-warning.png)
 
 ## Architecture
 
