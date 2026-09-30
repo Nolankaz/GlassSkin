@@ -22,6 +22,7 @@ the pages show an explicit error state with Retry.
 
 ```bash
 npm run lint        # eslint (eslint-config-next: core-web-vitals + typescript)
+npx next typegen    # generate App Router types for a fresh checkout
 npx tsc --noEmit    # type check only
 npm run build       # production build; also type checks
 ```

@@ -179,11 +179,12 @@ From `frontend/`, run the static checks and production build:
 
 ```bash
 npm run lint
+npx next typegen
 npx tsc --noEmit
 npm run build
 ```
 
-The build may require network access to fetch `next/font` Google fonts. There is currently no frontend test framework.
+The standalone TypeScript check needs generated App Router types in a fresh checkout. The build may require network access to fetch `next/font` Google fonts. In a restricted shell, Turbopack may also fail to spawn workers or bind local ports; rerun the same build command in a normal terminal. There is currently no frontend test framework.
 
 ## API
 
